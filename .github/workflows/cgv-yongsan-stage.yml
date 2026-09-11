@@ -3,14 +3,14 @@ name: CGV Yongsan Stage Monitor
 on:
   workflow_dispatch:
   schedule:
-    # KST 08:40
-    - cron: "40 23 * * *"
-    # KST 12:40
-    - cron: "40 3 * * *"
-    # KST 16:40
-    - cron: "40 7 * * *"
-    # KST 20:40
-    - cron: "40 11 * * *"
+    # KST 08:45
+    - cron: "45 23 * * *"
+    # KST 12:45
+    - cron: "45 3 * * *"
+    # KST 16:45
+    - cron: "45 7 * * *"
+    # KST 20:45
+    - cron: "45 11 * * *"
 
 permissions:
   contents: write
@@ -82,11 +82,11 @@ jobs:
             echo "seconds=120" >> "$GITHUB_OUTPUT"
           else
             case "${{ github.event.schedule }}" in
-              "40 23 * * *"|"40 3 * * *"|"40 7 * * *")
+              "45 23 * * *"|"45 3 * * *"|"45 7 * * *")
                 echo "seconds=14340" >> "$GITHUB_OUTPUT"
                 ;;
-              "40 11 * * *")
-                echo "seconds=11940" >> "$GITHUB_OUTPUT"
+              "45 11 * * *")
+                echo "seconds=11640" >> "$GITHUB_OUTPUT"
                 ;;
               *)
                 echo "seconds=120" >> "$GITHUB_OUTPUT"
