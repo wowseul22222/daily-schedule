@@ -1,0 +1,126 @@
+name: CGV Yongsan GV Monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    # KST 08:40
+    - cron: "40 23 * * *"
+    # KST 12:40
+    - cron: "40 3 * * *"
+    # KST 16:40
+    - cron: "40 7 * * *"
+    # KST 20:40
+    - cron: "40 11 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cgv-yongsan-gv-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 250
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependency
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install requests
+
+      - name: Verify source
+        run: |
+          python -m py_compile cinema_alert.py
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          text = Path("cinema_alert.py").read_text(encoding="utf-8")
+
+          required = [
+              'SITE_NO = "0013"',
+              'GV_CODE = "0023"',
+              'CGV YONGSAN GV-ONLY MONITOR',
+              'CY_WEBHOOK',
+              'DISCORD_MENTION_ID',
+          ]
+
+          missing = [x for x in required if x not in text]
+
+          if missing:
+              print("❌ GV 소스 검증 실패:", ", ".join(missing))
+              sys.exit(1)
+
+          print("✅ CGV 용산 GV 소스 검증 통과")
+          PY
+
+      - name: Check secrets
+        env:
+          CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
+          DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
+        run: |
+          test -n "$CY_WEBHOOK" || { echo "❌ CY_WEBHOOK secret missing"; exit 1; }
+          test -n "$DISCORD_MENTION_ID" || { echo "❌ DISCORD_MENTION_ID secret missing"; exit 1; }
+
+          echo "✅ Discord secrets loaded"
+
+      - name: Set monitoring duration
+        id: duration
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "seconds=120" >> "$GITHUB_OUTPUT"
+          else
+            case "${{ github.event.schedule }}" in
+              "40 23 * * *"|"40 3 * * *"|"40 7 * * *")
+                echo "seconds=14340" >> "$GITHUB_OUTPUT"
+                ;;
+              "40 11 * * *")
+                echo "seconds=11940" >> "$GITHUB_OUTPUT"
+                ;;
+              *)
+                echo "seconds=120" >> "$GITHUB_OUTPUT"
+                ;;
+            esac
+          fi
+
+      - name: Run GV monitor
+        env:
+          CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
+          DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
+          RUN_SECONDS: ${{ steps.duration.outputs.seconds }}
+        run: python -u cinema_alert.py
+
+      - name: Save GV state
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            seen_cgv_yongsan_gv_v2.json \
+            baseline_cgv_yongsan_gv_v2.done \
+            cgv_yongsan_gv_booking_state_v2.json \
+            2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No GV state changes"
+            exit 0
+          fi
+
+          git commit -m "Update CGV Yongsan GV state"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
