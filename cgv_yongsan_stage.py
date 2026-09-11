@@ -31,7 +31,7 @@ TARGET_WEEKDAYS = {2, 5, 6}  # 월=0 ... 일=6
 TARGET_DAY_LABEL = "수/토/일/공휴일"
 
 # 기존 최종 CGV 무대인사 구조를 유지: 대상 날짜 전체를 1분마다 재조회.
-FULL_SCAN_INTERVAL = 60.0
+FULL_SCAN_INTERVAL = 120.0
 MIN_REQUEST_GAP = 0.35
 RATE_LIMIT_COOLDOWN = 60.0
 SUMMARY_SECONDS = 600.0
