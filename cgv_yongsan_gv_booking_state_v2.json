@@ -1,9 +1,9 @@
 {
   "schema": "CGV_YONGSAN_GV_ONLY_V2_20260912",
-  "updated_at_kst": "2026-09-12T01:57:08.230179+09:00",
+  "updated_at_kst": "2026-09-12T09:13:25.589827+09:00",
   "shows": {
     "0013|20260912|30001399|20056439|015|5|1740|GV": {
-      "status": "OPEN",
+      "status": "SOLD_OUT",
       "date": "20260912",
       "type": "GV",
       "movie": "인턴",
@@ -12,8 +12,8 @@
       "screen": "17관 (Laser)",
       "time": "1740",
       "end_time": "2002",
-      "status_source": "frSeatCnt=1",
-      "updated_at_kst": "2026-09-12T01:55:26.114566+09:00"
+      "status_source": "frSeatCnt=0",
+      "updated_at_kst": "2026-09-12T09:11:26.782689+09:00"
     },
     "0013|20260912|30001399|20056439|024|5|1740|GV": {
       "status": "SOLD_OUT",
@@ -26,7 +26,7 @@
       "time": "1740",
       "end_time": "2002",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-12T01:55:26.114588+09:00"
+      "updated_at_kst": "2026-09-12T09:11:26.782728+09:00"
     },
     "0013|20260915|30001453|20056710|010|5|1900|GV": {
       "status": "OPEN",
@@ -39,7 +39,7 @@
       "time": "1900",
       "end_time": "2118",
       "status_source": "frSeatCnt=5",
-      "updated_at_kst": "2026-09-12T01:55:56.104020+09:00"
+      "updated_at_kst": "2026-09-12T09:11:56.754721+09:00"
     },
     "0013|20260918|30001377|20056443|010|5|1930|GV": {
       "status": "OPEN",
@@ -51,8 +51,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1930",
       "end_time": "2126",
-      "status_source": "frSeatCnt=29",
-      "updated_at_kst": "2026-09-12T01:57:00.230519+09:00"
+      "status_source": "frSeatCnt=27",
+      "updated_at_kst": "2026-09-12T09:13:00.299227+09:00"
     }
   }
 }
