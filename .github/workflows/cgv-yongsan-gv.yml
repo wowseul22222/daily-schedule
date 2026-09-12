@@ -54,6 +54,7 @@ jobs:
               'SITE_NO = "0013"',
               'GV_CODE = "0023"',
               'CGV YONGSAN GV-ONLY MONITOR',
+              'RUN_SECONDS',
           ]
           missing = [x for x in required if x not in text]
           if missing:
@@ -72,51 +73,54 @@ jobs:
           test -n "$DISCORD_MENTION_ID" || { echo "❌ DISCORD_MENTION_ID secret missing"; exit 1; }
           echo "✅ Discord secrets loaded"
 
-      - name: Set run duration
+      - name: Set monitoring duration
         id: duration
         shell: bash
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
-          from datetime import datetime, timedelta
+          from datetime import datetime
           from zoneinfo import ZoneInfo
 
-          KST = ZoneInfo("Asia/Seoul")
-          now = datetime.now(KST)
+          now = datetime.now(ZoneInfo("Asia/Seoul"))
 
-          # 각 실행은 다음 구간 직전까지 유지.
-          # 수동 실행도 다음 경계까지만 돌아서 다음 자동 실행과 겹치지 않게 한다.
-          cutoffs = [(12, 39), (16, 39), (20, 39), (23, 59)]
-
-          target = None
-          for hour, minute in cutoffs:
-              candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-              if candidate > now:
-                  target = candidate
-                  break
-
-          if target is None:
-              # 밤 23:59 이후 수동 실행 시에는 짧은 확인만 한다.
+          # 수동 실행도 2분 테스트로 끝내지 않는다.
+          # 실행 시각 기준 다음 교대 직전까지 계속 감시.
+          if now.hour < 8:
               seconds = 120
           else:
-              seconds = max(120, int((target - now).total_seconds()))
+              cutoffs = [(8, 39), (12, 39), (16, 39), (20, 39), (23, 59)]
+              target = None
+
+              for hour, minute in cutoffs:
+                  candidate = now.replace(
+                      hour=hour,
+                      minute=minute,
+                      second=0,
+                      microsecond=0,
+                  )
+                  if candidate > now:
+                      target = candidate
+                      break
+
+              seconds = (
+                  max(120, int((target - now).total_seconds()))
+                  if target
+                  else 120
+              )
 
           print(f"seconds={seconds}")
+          print(f"RUN_SECONDS={seconds}", file=__import__("sys").stderr)
           PY
 
       - name: Run GV monitor
         env:
           CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
           DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
+          RUN_SECONDS: ${{ steps.duration.outputs.seconds }}
         shell: bash
         run: |
-          set +e
-          timeout --signal=INT "${{ steps.duration.outputs.seconds }}s" \
-            python -u cinema_alert.py
-          rc=$?
-          if [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ] || [ "$rc" -eq 130 ]; then
-            exit 0
-          fi
-          exit "$rc"
+          echo "✅ GV RUN_SECONDS=${RUN_SECONDS}"
+          python -u cinema_alert.py
 
       - name: Save GV state
         if: always()
