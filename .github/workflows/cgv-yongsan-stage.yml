@@ -3,14 +3,15 @@ name: CGV Yongsan Stage Monitor
 on:
   workflow_dispatch:
   schedule:
-    # KST 08:45
-    - cron: "45 23 * * *"
-    # KST 12:45
-    - cron: "45 3 * * *"
-    # KST 16:45
-    - cron: "45 7 * * *"
-    # KST 20:45
-    - cron: "45 11 * * *"
+    # KST 08:45 / 12:45 / 16:45 / 20:45
+    - cron: "45 8 * * *"
+      timezone: "Asia/Seoul"
+    - cron: "45 12 * * *"
+      timezone: "Asia/Seoul"
+    - cron: "45 16 * * *"
+      timezone: "Asia/Seoul"
+    - cron: "45 20 * * *"
+      timezone: "Asia/Seoul"
 
 permissions:
   contents: write
@@ -40,21 +41,21 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install requests
 
-      - name: Verify source
+      - name: Verify stage source
+        shell: bash
         run: |
           python -m py_compile cgv_yongsan_stage.py
           python - <<'PY'
           from pathlib import Path
           import sys
+
           text = Path("cgv_yongsan_stage.py").read_text(encoding="utf-8")
           required = [
               'SITE_NO = "0013"',
               'CGV_STAGE_CODE = "0025"',
               'TARGET_WEEKDAYS = {2, 5, 6}',
               'TARGET_DAY_LABEL = "수/토/일/공휴일"',
-              'CGV_CUST_NO',
-              'CY_WEBHOOK',
-              'DISCORD_MENTION_ID',
+              'FULL_SCAN_INTERVAL = 120.0',
           ]
           missing = [x for x in required if x not in text]
           if missing:
@@ -68,39 +69,58 @@ jobs:
           CGV_CUST_NO: ${{ secrets.CGV_CUST_NO }}
           CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
           DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
+        shell: bash
         run: |
           test -n "$CGV_CUST_NO" || { echo "❌ CGV_CUST_NO secret missing"; exit 1; }
           test -n "$CY_WEBHOOK" || { echo "❌ CY_WEBHOOK secret missing"; exit 1; }
           test -n "$DISCORD_MENTION_ID" || { echo "❌ DISCORD_MENTION_ID secret missing"; exit 1; }
           echo "✅ CGV/Discord secrets loaded"
 
-      - name: Set monitoring duration
+      - name: Set run duration
         id: duration
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "seconds=120" >> "$GITHUB_OUTPUT"
-          else
-            case "${{ github.event.schedule }}" in
-              "45 23 * * *"|"45 3 * * *"|"45 7 * * *")
-                echo "seconds=14340" >> "$GITHUB_OUTPUT"
-                ;;
-              "45 11 * * *")
-                echo "seconds=11640" >> "$GITHUB_OUTPUT"
-                ;;
-              *)
-                echo "seconds=120" >> "$GITHUB_OUTPUT"
-                ;;
-            esac
-          fi
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+
+          KST = ZoneInfo("Asia/Seoul")
+          now = datetime.now(KST)
+
+          # 각 실행은 다음 구간 직전까지 유지.
+          # 수동 실행도 다음 경계까지만 돌아서 다음 자동 실행과 겹치지 않게 한다.
+          cutoffs = [(12, 44), (16, 44), (20, 44), (23, 59)]
+
+          target = None
+          for hour, minute in cutoffs:
+              candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+              if candidate > now:
+                  target = candidate
+                  break
+
+          if target is None:
+              seconds = 120
+          else:
+              seconds = max(120, int((target - now).total_seconds()))
+
+          print(f"seconds={seconds}")
+          PY
 
       - name: Run stage monitor
         env:
           CGV_CUST_NO: ${{ secrets.CGV_CUST_NO }}
           CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
           DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
-          RUN_SECONDS: ${{ steps.duration.outputs.seconds }}
-        run: python -u cgv_yongsan_stage.py
+        shell: bash
+        run: |
+          set +e
+          timeout --signal=INT "${{ steps.duration.outputs.seconds }}s" \
+            python -u cgv_yongsan_stage.py
+          rc=$?
+          if [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ] || [ "$rc" -eq 130 ]; then
+            exit 0
+          fi
+          exit "$rc"
 
       - name: Save stage state
         if: always()
@@ -120,6 +140,6 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Update CGV Yongsan stage state v4"
+          git commit -m "Update CGV Yongsan stage state"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"

@@ -3,14 +3,15 @@ name: CGV Yongsan GV Monitor
 on:
   workflow_dispatch:
   schedule:
-    # KST 08:40
-    - cron: "40 23 * * *"
-    # KST 12:40
-    - cron: "40 3 * * *"
-    # KST 16:40
-    - cron: "40 7 * * *"
-    # KST 20:40
-    - cron: "40 11 * * *"
+    # KST 08:40 / 12:40 / 16:40 / 20:40
+    - cron: "40 8 * * *"
+      timezone: "Asia/Seoul"
+    - cron: "40 12 * * *"
+      timezone: "Asia/Seoul"
+    - cron: "40 16 * * *"
+      timezone: "Asia/Seoul"
+    - cron: "40 20 * * *"
+      timezone: "Asia/Seoul"
 
 permissions:
   contents: write
@@ -40,7 +41,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install requests
 
-      - name: Verify source
+      - name: Verify GV source
+        shell: bash
         run: |
           python -m py_compile cinema_alert.py
           python - <<'PY'
@@ -48,21 +50,15 @@ jobs:
           import sys
 
           text = Path("cinema_alert.py").read_text(encoding="utf-8")
-
           required = [
               'SITE_NO = "0013"',
               'GV_CODE = "0023"',
               'CGV YONGSAN GV-ONLY MONITOR',
-              'CY_WEBHOOK',
-              'DISCORD_MENTION_ID',
           ]
-
           missing = [x for x in required if x not in text]
-
           if missing:
               print("❌ GV 소스 검증 실패:", ", ".join(missing))
               sys.exit(1)
-
           print("✅ CGV 용산 GV 소스 검증 통과")
           PY
 
@@ -70,38 +66,57 @@ jobs:
         env:
           CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
           DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
+        shell: bash
         run: |
           test -n "$CY_WEBHOOK" || { echo "❌ CY_WEBHOOK secret missing"; exit 1; }
           test -n "$DISCORD_MENTION_ID" || { echo "❌ DISCORD_MENTION_ID secret missing"; exit 1; }
-
           echo "✅ Discord secrets loaded"
 
-      - name: Set monitoring duration
+      - name: Set run duration
         id: duration
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "seconds=120" >> "$GITHUB_OUTPUT"
-          else
-            case "${{ github.event.schedule }}" in
-              "40 23 * * *"|"40 3 * * *"|"40 7 * * *")
-                echo "seconds=14340" >> "$GITHUB_OUTPUT"
-                ;;
-              "40 11 * * *")
-                echo "seconds=11940" >> "$GITHUB_OUTPUT"
-                ;;
-              *)
-                echo "seconds=120" >> "$GITHUB_OUTPUT"
-                ;;
-            esac
-          fi
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          from datetime import datetime, timedelta
+          from zoneinfo import ZoneInfo
+
+          KST = ZoneInfo("Asia/Seoul")
+          now = datetime.now(KST)
+
+          # 각 실행은 다음 구간 직전까지 유지.
+          # 수동 실행도 다음 경계까지만 돌아서 다음 자동 실행과 겹치지 않게 한다.
+          cutoffs = [(12, 39), (16, 39), (20, 39), (23, 59)]
+
+          target = None
+          for hour, minute in cutoffs:
+              candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+              if candidate > now:
+                  target = candidate
+                  break
+
+          if target is None:
+              # 밤 23:59 이후 수동 실행 시에는 짧은 확인만 한다.
+              seconds = 120
+          else:
+              seconds = max(120, int((target - now).total_seconds()))
+
+          print(f"seconds={seconds}")
+          PY
 
       - name: Run GV monitor
         env:
           CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
           DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
-          RUN_SECONDS: ${{ steps.duration.outputs.seconds }}
-        run: python -u cinema_alert.py
+        shell: bash
+        run: |
+          set +e
+          timeout --signal=INT "${{ steps.duration.outputs.seconds }}s" \
+            python -u cinema_alert.py
+          rc=$?
+          if [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ] || [ "$rc" -eq 130 ]; then
+            exit 0
+          fi
+          exit "$rc"
 
       - name: Save GV state
         if: always()
