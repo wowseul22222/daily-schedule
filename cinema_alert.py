@@ -43,7 +43,7 @@ FAST_SCAN_END_OFFSET = 21
 FAST_SCAN_WORKERS = 2
 
 # GitHub Actions workflow가 실행 구간을 RUN_SECONDS로 주입한다.
-RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "3900"))
+RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "86400"))
 
 BOOKING_PAGE = "https://cgv.co.kr/cnm/movieBook"
 API_URL = "https://cgv.co.kr/api/v1/booking/searchMovScnInfo"
@@ -757,7 +757,7 @@ def run_monitor(session, seen, show_state, started_at):
     )
     print("⚡ GV 00/30 추가점검 | +4~+21일 | 2 workers")
 
-    while time.monotonic() - started_at < RUN_SECONDS:
+    while time.monotonic() - started_at < RUN_SECONDS and 8 <= now_kst().hour <= 23:
         mono = time.monotonic()
         remaining = RUN_SECONDS - (mono - started_at)
         if remaining <= 0:
@@ -831,6 +831,11 @@ def run_monitor(session, seen, show_state, started_at):
 
 
 def main():
+    current = now_kst()
+    if not (8 <= current.hour <= 23):
+        print(f"⏹️ CGV 운영시간 밖이라 종료 | KST {current:%Y-%m-%d %H:%M:%S} | 운영 08:00~24:00")
+        return
+
     started_at = time.monotonic()
     print("=" * 72)
     print("CGV YONGSAN GV-ONLY MONITOR")

@@ -30,7 +30,7 @@ DAYS = 43
 TARGET_WEEKDAYS = {2, 5, 6}  # 월=0 ... 일=6
 TARGET_DAY_LABEL = "수/토/일/공휴일"
 
-# 기존 최종 CGV 무대인사 구조를 유지: 대상 날짜 전체를 1분마다 재조회.
+# 기존 최종 CGV 무대인사 구조를 유지: 대상 날짜 전체를 120초마다 재조회.
 FULL_SCAN_INTERVAL = 120.0
 MIN_REQUEST_GAP = 0.35
 RATE_LIMIT_COOLDOWN = 60.0
@@ -42,7 +42,7 @@ FAST_SCAN_START_OFFSET = 4
 FAST_SCAN_END_OFFSET = 21
 FAST_SCAN_WORKERS = 2
 
-RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "3900"))
+RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "86400"))
 
 API_URL = "https://cgv.co.kr/api/v1/booking/searchMovScnInfo"
 
@@ -767,11 +767,11 @@ def run_monitor(session, seen, show_state, started_at):
         else max(time.monotonic(), result["started"] + FULL_SCAN_INTERVAL)
     )
 
-    print(f"📡 무대인사 일반감시 | TODAY~+42 중 {TARGET_DAY_LABEL}만 | 전체 1분 주기")
+    print(f"📡 무대인사 일반감시 | TODAY~+42 중 {TARGET_DAY_LABEL}만 | 전체 120초 주기")
     print(f"⚡ 00/30 추가점검 | +4~+21일 중 {TARGET_DAY_LABEL}만 | 2 workers")
     print("🎯 무대인사 판정: videoAddexpCd=0025 ONLY")
 
-    while time.monotonic() - started_at < RUN_SECONDS:
+    while time.monotonic() - started_at < RUN_SECONDS and 8 <= now_kst().hour <= 23:
         mono = time.monotonic()
         remaining = RUN_SECONDS - (mono - started_at)
         if remaining <= 0:
@@ -827,6 +827,11 @@ def run_monitor(session, seen, show_state, started_at):
 
 
 def main():
+    current = now_kst()
+    if not (8 <= current.hour <= 23):
+        print(f"⏹️ CGV 운영시간 밖이라 종료 | KST {current:%Y-%m-%d %H:%M:%S} | 운영 08:00~24:00")
+        return
+
     started_at = time.monotonic()
     print("=" * 72)
     print("CGV YONGSAN STAGE-ONLY MONITOR")
@@ -836,7 +841,7 @@ def main():
     print("TARGET: 무대인사 ONLY / videoAddexpCd=0025")
     print(f"TARGET DAYS: {TARGET_DAY_LABEL} ONLY")
     print("DATE RANGE: TODAY ~ +42 DAYS")
-    print("SCAN: 대상 날짜 전체 60초 + 00/30 +4~+21일 2 workers")
+    print("SCAN: 대상 날짜 전체 120초 + 00/30 +4~+21일 2 workers")
     print("SOLD OUT / REOPEN: 사용자 알림 없음 / 내부 상태만 저장")
     print("ALERT: 날짜 + 영화 + 무대인사 묶음 / 영화 제목에만 예매 링크")
     print("RUN SECONDS:", RUN_SECONDS)
