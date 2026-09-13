@@ -42,7 +42,7 @@ FAST_SCAN_START_OFFSET = 4
 FAST_SCAN_END_OFFSET = 21
 FAST_SCAN_WORKERS = 2
 
-RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "120"))
+RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "3900"))
 
 API_URL = "https://cgv.co.kr/api/v1/booking/searchMovScnInfo"
 
