@@ -3,19 +3,21 @@ name: CGV Yongsan GV Monitor
 on:
   workflow_dispatch:
   schedule:
-    # KST 08:40 / 12:40 / 16:40 / 20:40
+    # 첫 시작 KST 08:40
     - cron: "40 8 * * *"
       timezone: "Asia/Seoul"
-    - cron: "40 12 * * *"
+    # 이후 30분마다 watchdog. 앞 실행이 살아 있으면 concurrency에서 대기.
+    - cron: "10,40 9-22 * * *"
       timezone: "Asia/Seoul"
-    - cron: "40 16 * * *"
-      timezone: "Asia/Seoul"
-    - cron: "40 20 * * *"
+    # 자정 전 마지막 watchdog
+    - cron: "10 23 * * *"
       timezone: "Asia/Seoul"
 
 permissions:
   contents: write
 
+# 같은 모니터가 겹쳐서 중복 알림을 내지 않게 한 번에 하나만 실행.
+# 30분 watchdog이 대기 중이면 현재 실행 종료 후 이어서 시작한다.
 concurrency:
   group: cgv-yongsan-gv-monitor
   cancel-in-progress: false
@@ -23,13 +25,20 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 250
+    timeout-minutes: 80
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Trigger info
+        shell: bash
+        run: |
+          echo "EVENT=${{ github.event_name }}"
+          echo "SCHEDULE=${{ github.event.schedule }}"
+          echo "REF=${{ github.ref_name }}"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,7 +50,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install requests
 
-      - name: Verify GV source
+      - name: Verify source
         shell: bash
         run: |
           python -m py_compile cinema_alert.py
@@ -54,13 +63,13 @@ jobs:
               'SITE_NO = "0013"',
               'GV_CODE = "0023"',
               'CGV YONGSAN GV-ONLY MONITOR',
-              'RUN_SECONDS',
+              'RUN_SECONDS'
           ]
           missing = [x for x in required if x not in text]
           if missing:
-              print("❌ GV 소스 검증 실패:", ", ".join(missing))
+              print("❌ source verification failed:", ", ".join(missing))
               sys.exit(1)
-          print("✅ CGV 용산 GV 소스 검증 통과")
+          print("✅ source verification passed")
           PY
 
       - name: Check secrets
@@ -71,48 +80,34 @@ jobs:
         run: |
           test -n "$CY_WEBHOOK" || { echo "❌ CY_WEBHOOK secret missing"; exit 1; }
           test -n "$DISCORD_MENTION_ID" || { echo "❌ DISCORD_MENTION_ID secret missing"; exit 1; }
-          echo "✅ Discord secrets loaded"
+          echo "✅ secrets loaded"
 
       - name: Set monitoring duration
         id: duration
         shell: bash
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
-          from datetime import datetime
+          from datetime import datetime, timedelta
           from zoneinfo import ZoneInfo
 
           now = datetime.now(ZoneInfo("Asia/Seoul"))
+          midnight = now.replace(hour=23, minute=59, second=0, microsecond=0)
 
-          # 수동 실행도 2분 테스트로 끝내지 않는다.
-          # 실행 시각 기준 다음 교대 직전까지 계속 감시.
-          if now.hour < 8:
+          # 한 실행은 최대 65분.
+          # 30분 watchdog이 계속 생성되므로 현재 실행이 끝날 때
+          # 가장 최근 대기 실행이 이어받는다.
+          max_seconds = 3900
+
+          if now >= midnight:
               seconds = 120
           else:
-              cutoffs = [(8, 39), (12, 39), (16, 39), (20, 39), (23, 59)]
-              target = None
-
-              for hour, minute in cutoffs:
-                  candidate = now.replace(
-                      hour=hour,
-                      minute=minute,
-                      second=0,
-                      microsecond=0,
-                  )
-                  if candidate > now:
-                      target = candidate
-                      break
-
-              seconds = (
-                  max(120, int((target - now).total_seconds()))
-                  if target
-                  else 120
-              )
+              seconds = min(max_seconds, max(120, int((midnight - now).total_seconds())))
 
           print(f"seconds={seconds}")
           print(f"RUN_SECONDS={seconds}", file=__import__("sys").stderr)
           PY
 
-      - name: Run GV monitor
+      - name: Run monitor
         env:
           CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
           DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
@@ -122,7 +117,7 @@ jobs:
           echo "✅ GV RUN_SECONDS=${RUN_SECONDS}"
           python -u cinema_alert.py
 
-      - name: Save GV state
+      - name: Save state
         if: always()
         shell: bash
         run: |
@@ -136,10 +131,10 @@ jobs:
             2>/dev/null || true
 
           if git diff --cached --quiet; then
-            echo "No GV state changes"
+            echo "No state changes"
             exit 0
           fi
 
           git commit -m "Update CGV Yongsan GV state"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git pull --rebase origin "${{ github.ref_name }}"
+          git push origin "HEAD:${{ github.ref_name }}"
