@@ -3,21 +3,18 @@ name: CGV Yongsan Stage Monitor
 on:
   workflow_dispatch:
   schedule:
-    # 첫 시작 KST 08:45
-    - cron: "45 8 * * *"
-      timezone: "Asia/Seoul"
-    # 이후 30분마다 watchdog. 앞 실행이 살아 있으면 concurrency에서 대기.
-    - cron: "15,45 9-22 * * *"
-      timezone: "Asia/Seoul"
-    # 자정 전 마지막 watchdog
-    - cron: "15 23 * * *"
-      timezone: "Asia/Seoul"
+    # KST 08:05
+    - cron: "5 23 * * *"
+    # KST 13:35
+    - cron: "35 4 * * *"
+    # KST 19:05
+    - cron: "5 10 * * *"
+    # KST 23:35
+    - cron: "35 14 * * *"
 
 permissions:
   contents: write
 
-# 같은 모니터가 겹쳐서 중복 알림을 내지 않게 한 번에 하나만 실행.
-# 30분 watchdog이 대기 중이면 현재 실행 종료 후 이어서 시작한다.
 concurrency:
   group: cgv-yongsan-stage-monitor
   cancel-in-progress: false
@@ -25,20 +22,13 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 80
+    timeout-minutes: 340
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Trigger info
-        shell: bash
-        run: |
-          echo "EVENT=${{ github.event_name }}"
-          echo "SCHEDULE=${{ github.event.schedule }}"
-          echo "REF=${{ github.ref_name }}"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -50,7 +40,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install requests
 
-      - name: Verify source
+      - name: Verify stage source
         shell: bash
         run: |
           python -m py_compile cgv_yongsan_stage.py
@@ -65,13 +55,14 @@ jobs:
               'TARGET_WEEKDAYS = {2, 5, 6}',
               'TARGET_DAY_LABEL = "수/토/일/공휴일"',
               'FULL_SCAN_INTERVAL = 120.0',
-              'RUN_SECONDS'
+              'STATE_FILE = "seen_cgv_yongsan_stage_v4.json"',
+              'BOOKING_STATE_FILE = "cgv_yongsan_stage_booking_state_v4.json"',
           ]
           missing = [x for x in required if x not in text]
           if missing:
-              print("❌ source verification failed:", ", ".join(missing))
+              print("❌ 무대인사 소스 검증 실패:", ", ".join(missing))
               sys.exit(1)
-          print("✅ source verification passed")
+          print("✅ CGV 용산 무대인사 소스 검증 통과")
           PY
 
       - name: Check secrets
@@ -84,34 +75,34 @@ jobs:
           test -n "$CGV_CUST_NO" || { echo "❌ CGV_CUST_NO secret missing"; exit 1; }
           test -n "$CY_WEBHOOK" || { echo "❌ CY_WEBHOOK secret missing"; exit 1; }
           test -n "$DISCORD_MENTION_ID" || { echo "❌ DISCORD_MENTION_ID secret missing"; exit 1; }
-          echo "✅ secrets loaded"
+          echo "✅ CGV/Discord secrets loaded"
 
       - name: Set monitoring duration
         id: duration
         shell: bash
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
-          from datetime import datetime, timedelta
+          from datetime import datetime
           from zoneinfo import ZoneInfo
 
           now = datetime.now(ZoneInfo("Asia/Seoul"))
-          midnight = now.replace(hour=23, minute=59, second=0, microsecond=0)
+          cutoffs = [(8, 4), (13, 34), (19, 4), (23, 34), (23, 59)]
+          target = None
+          for h, m in cutoffs:
+              candidate = now.replace(hour=h, minute=m, second=0, microsecond=0)
+              if candidate > now:
+                  target = candidate
+                  break
 
-          # 한 실행은 최대 65분.
-          # 30분 watchdog이 계속 생성되므로 현재 실행이 끝날 때
-          # 가장 최근 대기 실행이 이어받는다.
-          max_seconds = 3900
-
-          if now >= midnight:
-              seconds = 120
+          if not (8 <= now.hour <= 23) or target is None:
+              seconds = 60
           else:
-              seconds = min(max_seconds, max(120, int((midnight - now).total_seconds())))
+              seconds = max(60, int((target - now).total_seconds()))
 
           print(f"seconds={seconds}")
-          print(f"RUN_SECONDS={seconds}", file=__import__("sys").stderr)
           PY
 
-      - name: Run monitor
+      - name: Run stage monitor
         env:
           CGV_CUST_NO: ${{ secrets.CGV_CUST_NO }}
           CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
@@ -122,7 +113,7 @@ jobs:
           echo "✅ STAGE RUN_SECONDS=${RUN_SECONDS}"
           python -u cgv_yongsan_stage.py
 
-      - name: Save state
+      - name: Save stage state
         if: always()
         shell: bash
         run: |
@@ -136,10 +127,10 @@ jobs:
             2>/dev/null || true
 
           if git diff --cached --quiet; then
-            echo "No state changes"
+            echo "No stage state changes"
             exit 0
           fi
 
-          git commit -m "Update CGV Yongsan stage state"
-          git pull --rebase origin "${{ github.ref_name }}"
-          git push origin "HEAD:${{ github.ref_name }}"
+          git commit -m "Update CGV Yongsan stage state v4"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
