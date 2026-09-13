@@ -1,6 +1,6 @@
 {
   "schema": "CGV_YONGSAN_GV_ONLY_V2_20260912",
-  "updated_at_kst": "2026-09-12T23:58:59.324359+09:00",
+  "updated_at_kst": "2026-09-13T12:38:59.349681+09:00",
   "shows": {
     "0013|20260912|30001399|20056439|015|5|1740|GV": {
       "status": "OPEN",
@@ -39,7 +39,7 @@
       "time": "1900",
       "end_time": "2118",
       "status_source": "frSeatCnt=5",
-      "updated_at_kst": "2026-09-12T23:58:04.287315+09:00"
+      "updated_at_kst": "2026-09-13T12:38:48.290780+09:00"
     },
     "0013|20260918|30001377|20056443|010|5|1930|GV": {
       "status": "OPEN",
@@ -51,8 +51,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1930",
       "end_time": "2126",
-      "status_source": "frSeatCnt=26",
-      "updated_at_kst": "2026-09-12T23:58:31.358616+09:00"
+      "status_source": "frSeatCnt=19",
+      "updated_at_kst": "2026-09-13T12:38:45.720339+09:00"
     }
   }
 }
