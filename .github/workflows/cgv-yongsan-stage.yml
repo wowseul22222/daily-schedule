@@ -3,14 +3,14 @@ name: CGV Yongsan Stage Monitor
 on:
   workflow_dispatch:
   schedule:
-    # KST 08:05
-    - cron: "5 23 * * *"
-    # KST 13:35
-    - cron: "35 4 * * *"
-    # KST 19:05
-    - cron: "5 10 * * *"
-    # KST 23:35
-    - cron: "35 14 * * *"
+    # KST 06:03
+    - cron: "3 21 * * *"
+    # KST 11:33
+    - cron: "33 2 * * *"
+    # KST 17:03
+    - cron: "3 8 * * *"
+    # KST 22:33
+    - cron: "33 13 * * *"
 
 permissions:
   contents: write
@@ -22,7 +22,7 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 350
 
     steps:
       - name: Checkout
@@ -55,8 +55,7 @@ jobs:
               'TARGET_WEEKDAYS = {2, 5, 6}',
               'TARGET_DAY_LABEL = "수/토/일/공휴일"',
               'FULL_SCAN_INTERVAL = 120.0',
-              'STATE_FILE = "seen_cgv_yongsan_stage_v4.json"',
-              'BOOKING_STATE_FILE = "cgv_yongsan_stage_booking_state_v4.json"',
+              'RUN_SECONDS',
           ]
           missing = [x for x in required if x not in text]
           if missing:
@@ -80,26 +79,65 @@ jobs:
       - name: Set monitoring duration
         id: duration
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CRON_SCHEDULE: ${{ github.event.schedule }}
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
-          from datetime import datetime
+          import os
+          from datetime import datetime, timedelta
           from zoneinfo import ZoneInfo
 
+          event_name = os.environ.get("EVENT_NAME", "")
+          schedule = os.environ.get("CRON_SCHEDULE", "")
           now = datetime.now(ZoneInfo("Asia/Seoul"))
-          cutoffs = [(8, 4), (13, 34), (19, 4), (23, 34), (23, 59)]
-          target = None
-          for h, m in cutoffs:
-              candidate = now.replace(hour=h, minute=m, second=0, microsecond=0)
-              if candidate > now:
-                  target = candidate
-                  break
 
-          if not (8 <= now.hour <= 23) or target is None:
-              seconds = 60
+          next_times = {
+              "3 21 * * *": (11, 33),
+              "33 2 * * *": (17, 3),
+              "3 8 * * *": (22, 33),
+              "33 13 * * *": (0, 0),
+          }
+
+          def seconds_until(hour, minute, next_day=False):
+              if next_day:
+                  target = (now + timedelta(days=1)).replace(
+                      hour=hour, minute=minute, second=0, microsecond=0
+                  )
+              else:
+                  target = now.replace(
+                      hour=hour, minute=minute, second=0, microsecond=0
+                  )
+                  if target <= now:
+                      target += timedelta(days=1)
+
+              return max(60, int((target - now).total_seconds()) - 60)
+
+          if event_name == "schedule":
+              hour, minute = next_times.get(schedule, (0, 0))
+              if schedule == "33 13 * * *":
+                  print(f"seconds={seconds_until(0, 0, next_day=True)}")
+              elif schedule in next_times:
+                  print(f"seconds={seconds_until(hour, minute)}")
+              else:
+                  print("seconds=600")
+              raise SystemExit
+
+          h, m = now.hour, now.minute
+          if (h, m) < (6, 3):
+              target = now.replace(hour=6, minute=3, second=0, microsecond=0)
+          elif (h, m) < (11, 33):
+              target = now.replace(hour=11, minute=33, second=0, microsecond=0)
+          elif (h, m) < (17, 3):
+              target = now.replace(hour=17, minute=3, second=0, microsecond=0)
+          elif (h, m) < (22, 33):
+              target = now.replace(hour=22, minute=33, second=0, microsecond=0)
           else:
-              seconds = max(60, int((target - now).total_seconds()))
+              target = (now + timedelta(days=1)).replace(
+                  hour=0, minute=0, second=0, microsecond=0
+              )
 
-          print(f"seconds={seconds}")
+          print(f"seconds={max(60, int((target-now).total_seconds())-60)}")
           PY
 
       - name: Run stage monitor
@@ -108,7 +146,6 @@ jobs:
           CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
           DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
           RUN_SECONDS: ${{ steps.duration.outputs.seconds }}
-        shell: bash
         run: |
           echo "✅ STAGE RUN_SECONDS=${RUN_SECONDS}"
           python -u cgv_yongsan_stage.py
@@ -128,9 +165,8 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "No stage state changes"
-            exit 0
+          else
+            git commit -m "Update CGV Yongsan stage state v4"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
-
-          git commit -m "Update CGV Yongsan stage state v4"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
