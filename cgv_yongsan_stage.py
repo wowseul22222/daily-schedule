@@ -771,7 +771,7 @@ def run_monitor(session, seen, show_state, started_at):
     print(f"⚡ 00/30 추가점검 | +4~+21일 중 {TARGET_DAY_LABEL}만 | 2 workers")
     print("🎯 무대인사 판정: videoAddexpCd=0025 ONLY")
 
-    while time.monotonic() - started_at < RUN_SECONDS and 8 <= now_kst().hour <= 23:
+    while time.monotonic() - started_at < RUN_SECONDS and 6 <= now_kst().hour <= 23:
         mono = time.monotonic()
         remaining = RUN_SECONDS - (mono - started_at)
         if remaining <= 0:
@@ -828,8 +828,8 @@ def run_monitor(session, seen, show_state, started_at):
 
 def main():
     current = now_kst()
-    if not (8 <= current.hour <= 23):
-        print(f"⏹️ CGV 운영시간 밖이라 종료 | KST {current:%Y-%m-%d %H:%M:%S} | 운영 08:00~24:00")
+    if not (6 <= current.hour <= 23):
+        print(f"⏹️ CGV 운영시간 밖이라 종료 | KST {current:%Y-%m-%d %H:%M:%S} | 운영 06:00~24:00")
         return
 
     started_at = time.monotonic()
