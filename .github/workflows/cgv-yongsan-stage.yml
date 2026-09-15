@@ -2,22 +2,13 @@ name: CGV Yongsan Stage Monitor
 
 on:
   workflow_dispatch:
-  schedule:
-    # KST 06:03
-    - cron: "3 21 * * *"
-    # KST 11:33
-    - cron: "33 2 * * *"
-    # KST 17:03
-    - cron: "3 8 * * *"
-    # KST 22:33
-    - cron: "33 13 * * *"
 
 permissions:
   contents: write
 
 concurrency:
   group: cgv-yongsan-stage-monitor
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   monitor:
@@ -76,69 +67,13 @@ jobs:
           test -n "$DISCORD_MENTION_ID" || { echo "❌ DISCORD_MENTION_ID secret missing"; exit 1; }
           echo "✅ CGV/Discord secrets loaded"
 
-      - name: Set monitoring duration
+      - name: Set manual monitoring duration
         id: duration
         shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          CRON_SCHEDULE: ${{ github.event.schedule }}
         run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import os
-          from datetime import datetime, timedelta
-          from zoneinfo import ZoneInfo
-
-          event_name = os.environ.get("EVENT_NAME", "")
-          schedule = os.environ.get("CRON_SCHEDULE", "")
-          now = datetime.now(ZoneInfo("Asia/Seoul"))
-
-          next_times = {
-              "3 21 * * *": (11, 33),
-              "33 2 * * *": (17, 3),
-              "3 8 * * *": (22, 33),
-              "33 13 * * *": (0, 0),
-          }
-
-          def seconds_until(hour, minute, next_day=False):
-              if next_day:
-                  target = (now + timedelta(days=1)).replace(
-                      hour=hour, minute=minute, second=0, microsecond=0
-                  )
-              else:
-                  target = now.replace(
-                      hour=hour, minute=minute, second=0, microsecond=0
-                  )
-                  if target <= now:
-                      target += timedelta(days=1)
-
-              return max(60, int((target - now).total_seconds()) - 60)
-
-          if event_name == "schedule":
-              hour, minute = next_times.get(schedule, (0, 0))
-              if schedule == "33 13 * * *":
-                  print(f"seconds={seconds_until(0, 0, next_day=True)}")
-              elif schedule in next_times:
-                  print(f"seconds={seconds_until(hour, minute)}")
-              else:
-                  print("seconds=600")
-              raise SystemExit
-
-          h, m = now.hour, now.minute
-          if (h, m) < (6, 3):
-              target = now.replace(hour=6, minute=3, second=0, microsecond=0)
-          elif (h, m) < (11, 33):
-              target = now.replace(hour=11, minute=33, second=0, microsecond=0)
-          elif (h, m) < (17, 3):
-              target = now.replace(hour=17, minute=3, second=0, microsecond=0)
-          elif (h, m) < (22, 33):
-              target = now.replace(hour=22, minute=33, second=0, microsecond=0)
-          else:
-              target = (now + timedelta(days=1)).replace(
-                  hour=0, minute=0, second=0, microsecond=0
-              )
-
-          print(f"seconds={max(60, int((target-now).total_seconds())-60)}")
-          PY
+          # 수동 실행 1회당 최대 5시간 30분 감시.
+          # Python 자체 운영시간 가드(06:00~24:00)가 자정에는 먼저 종료시킨다.
+          echo "seconds=19800" >> "$GITHUB_OUTPUT"
 
       - name: Run stage monitor
         env:

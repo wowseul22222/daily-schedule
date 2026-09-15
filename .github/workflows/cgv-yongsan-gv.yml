@@ -2,22 +2,13 @@ name: CGV Yongsan GV Monitor
 
 on:
   workflow_dispatch:
-  schedule:
-    # KST 06:02
-    - cron: "2 21 * * *"
-    # KST 11:32
-    - cron: "32 2 * * *"
-    # KST 17:02
-    - cron: "2 8 * * *"
-    # KST 22:32
-    - cron: "32 13 * * *"
 
 permissions:
   contents: write
 
 concurrency:
   group: cgv-yongsan-gv-monitor
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   monitor:
@@ -72,71 +63,13 @@ jobs:
           test -n "$DISCORD_MENTION_ID" || { echo "❌ DISCORD_MENTION_ID secret missing"; exit 1; }
           echo "✅ Discord secrets loaded"
 
-      - name: Set monitoring duration
+      - name: Set manual monitoring duration
         id: duration
         shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          CRON_SCHEDULE: ${{ github.event.schedule }}
         run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import os
-          from datetime import datetime, timedelta
-          from zoneinfo import ZoneInfo
-
-          event_name = os.environ.get("EVENT_NAME", "")
-          schedule = os.environ.get("CRON_SCHEDULE", "")
-          now = datetime.now(ZoneInfo("Asia/Seoul"))
-
-          next_times = {
-              "2 21 * * *": (11, 32),
-              "32 2 * * *": (17, 2),
-              "2 8 * * *": (22, 32),
-              "32 13 * * *": (0, 0),
-          }
-
-          def seconds_until(hour, minute, next_day=False):
-              if next_day:
-                  target = (now + timedelta(days=1)).replace(
-                      hour=hour, minute=minute, second=0, microsecond=0
-                  )
-              else:
-                  target = now.replace(
-                      hour=hour, minute=minute, second=0, microsecond=0
-                  )
-                  if target <= now:
-                      target += timedelta(days=1)
-
-              # 다음 실행 1분 전에 끝내서 queue 누적을 막는다.
-              return max(60, int((target - now).total_seconds()) - 60)
-
-          if event_name == "schedule":
-              hour, minute = next_times.get(schedule, (0, 0))
-              if schedule == "32 13 * * *":
-                  print(f"seconds={seconds_until(0, 0, next_day=True)}")
-              elif schedule in next_times:
-                  print(f"seconds={seconds_until(hour, minute)}")
-              else:
-                  print("seconds=600")
-              raise SystemExit
-
-          # 수동 실행도 현재 시각부터 다음 정규 실행 1분 전까지 감시.
-          h, m = now.hour, now.minute
-          if (h, m) < (6, 2):
-              target = now.replace(hour=6, minute=2, second=0, microsecond=0)
-          elif (h, m) < (11, 32):
-              target = now.replace(hour=11, minute=32, second=0, microsecond=0)
-          elif (h, m) < (17, 2):
-              target = now.replace(hour=17, minute=2, second=0, microsecond=0)
-          elif (h, m) < (22, 32):
-              target = now.replace(hour=22, minute=32, second=0, microsecond=0)
-          else:
-              target = (now + timedelta(days=1)).replace(
-                  hour=0, minute=0, second=0, microsecond=0
-              )
-
-          print(f"seconds={max(60, int((target-now).total_seconds())-60)}")
-          PY
+          # 수동 실행 1회당 최대 5시간 30분 감시.
+          # Python 자체 운영시간 가드(06:00~24:00)가 자정에는 먼저 종료시킨다.
+          echo "seconds=19800" >> "$GITHUB_OUTPUT"
 
       - name: Run GV monitor
         env:
