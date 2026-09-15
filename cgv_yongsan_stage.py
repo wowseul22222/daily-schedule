@@ -46,6 +46,14 @@ RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "86400"))
 
 API_URL = "https://cgv.co.kr/api/v1/booking/searchMovScnInfo"
 
+# CGV 영상부가체험 직접 필터. 일반 극장/날짜 API보다 무대인사 영화/날짜가 먼저 뜨는 경우를 잡는다.
+DIRECT_MOVIE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchAtktTopPostrList"
+DIRECT_DATE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchSiteScnscYmdListByMov"
+DIRECT_FILTER_CODE = CGV_STAGE_CODE
+DIRECT_SCAN_INTERVAL = 30.0
+DIRECT_SCAN_TIMEOUT = 12
+DIRECT_SIGNAL_DATES = set()
+
 STATE_FILE = "seen_cgv_yongsan_stage_v4.json"
 BASELINE_FILE = "baseline_cgv_yongsan_stage_v4.done"
 BOOKING_STATE_FILE = "cgv_yongsan_stage_booking_state_v4.json"
@@ -149,7 +157,8 @@ def make_dates(start_offset=0, end_offset=42):
     result = []
     for offset in range(start_offset, end_offset + 1):
         date = (today + timedelta(days=offset)).strftime("%Y%m%d")
-        if is_stage_target_date(date):
+        # 기본은 수/토/일/공휴일. 다만 0025 직접필터에서 잡힌 날짜는 요일과 무관하게 즉시 상세감시에 추가한다.
+        if is_stage_target_date(date) or date in DIRECT_SIGNAL_DATES:
             result.append(date)
     return result
 
@@ -367,6 +376,144 @@ def state_record(event, status=None):
     }
 
 
+def is_stage_row(row):
+    # 실제 코드 0025 최우선.
+    if normalize_code(row.get("videoAddexpCd")) == CGV_STAGE_CODE:
+        return True
+
+    # 코드가 비거나 CGV 응답 형태가 달라진 경우 이름/설명 텍스트도 보조 판정한다.
+    event_fields = [
+        "videoAddexpCdNm", "videoAddexpNm", "videoAddexpCont",
+        "eventNm", "eventName", "specialEventNm", "specialEventName",
+        "addexpNm", "addexpName", "expoProdNm", "movNm", "movName",
+    ]
+    event_text = " | ".join(clean(row.get(k)) for k in event_fields if clean(row.get(k)))
+    compact = re.sub(r"\s+", "", event_text)
+    return "무대인사" in compact or "舞台挨拶" in event_text
+
+
+def iter_dicts(value):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from iter_dicts(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from iter_dicts(child)
+
+
+def extract_direct_movies(data):
+    movies = {}
+    for row in iter_dicts(data):
+        mov_no = clean(row.get("movNo"))
+        if not mov_no:
+            continue
+        movie = clean(row.get("movNm") or row.get("expoProdNm") or row.get("iMovNm") or row.get("movName"))
+        movies[mov_no] = movie
+    return movies
+
+
+def extract_direct_dates(data):
+    dates = set()
+    for row in iter_dicts(data):
+        ymd = clean(row.get("scnYmd"))
+        if re.fullmatch(r"\d{8}", ymd):
+            dates.add(ymd)
+    return dates
+
+
+def direct_filter_link(date, mov_no):
+    return "https://cgv.co.kr/cnm/movieBook/movie?" + urlencode({
+        "movNo": clean(mov_no),
+        "scnYmd": clean(date),
+        "siteNo": SITE_NO,
+        "siteNm": SITE_NAME,
+        "div": "VIDEO_ADDEXP_CD",
+        "attrCd": DIRECT_FILTER_CODE,
+    })
+
+
+def direct_event_key(date, mov_no):
+    return "|".join([SITE_NO, clean(date), clean(mov_no), "STAGE_DIRECT_0025"])
+
+
+def make_direct_event(date, mov_no, movie):
+    return {
+        "date": clean(date),
+        "type": "무대인사",
+        "movie": clean(movie) or f"영화번호 {clean(mov_no)}",
+        "mov_no": clean(mov_no),
+        "prod_no": "",
+        "screen": "",
+        "time": "",
+        "end_time": "",
+        "status": "UNKNOWN",
+        "status_source": "VIDEO_ADDEXP_CD=0025 direct filter",
+        "link": direct_filter_link(date, mov_no),
+        "row": {
+            "movNo": clean(mov_no),
+            "movNm": clean(movie),
+            "videoAddexpCd": DIRECT_FILTER_CODE,
+            "videoAddexpCdNm": "무대인사",
+            "_directSynthetic": True,
+        },
+    }
+
+
+def scan_direct_filter(session):
+    """0025 전용 영화목록 -> 용산 날짜목록. 상세 회차가 숨겨져 있어도 영화/날짜 신호를 먼저 잡는다."""
+    today = now_kst().date()
+    valid_dates = {
+        (today + timedelta(days=i)).strftime("%Y%m%d")
+        for i in range(DAYS)
+    }
+    response = session.get(
+        DIRECT_MOVIE_LIST_URL,
+        params={
+            "coCd": CO_CD,
+            "movNm": "",
+            "div": "VIDEO_ADDEXP_CD",
+            "attrCd": DIRECT_FILTER_CODE,
+        },
+        headers={**BASE_HEADERS, "Referer": "https://cgv.co.kr/cnm/movieBook/movie"},
+        timeout=DIRECT_SCAN_TIMEOUT,
+    )
+    response.raise_for_status()
+    movies = extract_direct_movies(response.json())
+
+    signals = {}
+    errors = 0
+    found_dates = set()
+    for mov_no, movie in movies.items():
+        try:
+            dr = session.get(
+                DIRECT_DATE_LIST_URL,
+                params={
+                    "coCd": CO_CD,
+                    "siteNo": SITE_NO,
+                    "movNo": mov_no,
+                    "div": "VIDEO_ADDEXP_CD",
+                    "attrCd": DIRECT_FILTER_CODE,
+                },
+                headers={**BASE_HEADERS, "Referer": "https://cgv.co.kr/cnm/movieBook/movie"},
+                timeout=DIRECT_SCAN_TIMEOUT,
+            )
+            dr.raise_for_status()
+            dates = extract_direct_dates(dr.json()) & valid_dates
+        except Exception as error:
+            errors += 1
+            print(f"⚠️ 무대인사 직접필터 날짜조회 오류 | MOV={mov_no} | {repr(error)}")
+            continue
+
+        found_dates.update(dates)
+        for date in dates:
+            key = direct_event_key(date, mov_no)
+            signals[key] = make_direct_event(date, mov_no, movie)
+
+    DIRECT_SIGNAL_DATES.clear()
+    DIRECT_SIGNAL_DATES.update(found_dates)
+    return signals, errors
+
 def extract_rows(data):
     if isinstance(data, dict) and isinstance(data.get("data"), list):
         return [row for row in data["data"] if isinstance(row, dict)]
@@ -413,8 +560,7 @@ def check_one_date(session, date):
 
         events = {}
         for row in extract_rows(data):
-            # 텍스트 추측이 아니라 CGV 실제 일련코드 0025만 무대인사로 인정한다.
-            if normalize_code(row.get("videoAddexpCd")) != CGV_STAGE_CODE:
+            if not is_stage_row(row):
                 continue
             key = event_key(date, row)
             events[key] = normalize_event(date, row)
@@ -499,6 +645,73 @@ def send_alert_group(events, status):
     return messages
 
 
+def same_movie_date(record, event):
+    if not isinstance(record, dict):
+        return False
+    if clean(record.get("date")) != clean(event.get("date")):
+        return False
+    record_mov = clean(record.get("mov_no"))
+    event_mov = clean(event.get("mov_no"))
+    if record_mov and event_mov:
+        return record_mov == event_mov
+    a = re.sub(r"\s+", "", clean(record.get("movie"))).casefold()
+    b = re.sub(r"\s+", "", clean(event.get("movie"))).casefold()
+    return bool(a and b and (a == b or a in b or b in a))
+
+
+def has_equivalent_state(show_state, event, direct_only=False):
+    for record in show_state.values():
+        if direct_only and "direct filter" not in clean(record.get("status_source")).casefold():
+            continue
+        if same_movie_date(record, event):
+            return True
+    return False
+
+
+def process_direct_signals(signals, seen, show_state):
+    alerts = 0
+    new_count = 0
+    for key, event in sorted(signals.items()):
+        if key in seen:
+            continue
+
+        # 이미 실제 회차로 알고 있는 무대인사라면 직접필터 키만 조용히 동기화한다.
+        if has_equivalent_state(show_state, event):
+            seen.add(key)
+            show_state[key] = state_record(event, "DETECTED")
+            continue
+
+        message_count = send_alert_group([event], "DETECTED")
+        if message_count <= 0:
+            continue
+
+        alerts += message_count
+        new_count += 1
+        seen.add(key)
+        show_state[key] = state_record(event, "DETECTED")
+
+    if new_count:
+        save_seen(seen)
+        save_booking_state(show_state)
+    return alerts, new_count
+
+
+def run_direct_filter_scan(session, seen, show_state):
+    started = time.monotonic()
+    try:
+        signals, inner_errors = scan_direct_filter(session)
+        alerts, new_count = process_direct_signals(signals, seen, show_state)
+        elapsed = time.monotonic() - started
+        print(
+            f"🎯 무대인사 0025 직접필터 완료 | 신호 {len(signals)} | 신규 {new_count} | "
+            f"대상날짜 {len(DIRECT_SIGNAL_DATES)} | Discord 알림 {alerts} | 오류 {inner_errors} | {elapsed:.2f}초"
+        )
+        return {"signals": len(signals), "alerts": alerts, "errors": inner_errors}
+    except Exception as error:
+        elapsed = time.monotonic() - started
+        print(f"❌ 무대인사 0025 직접필터 오류 | {repr(error)} | {elapsed:.2f}초")
+        return {"signals": 0, "alerts": 0, "errors": 1}
+
 def process_new_events(events, seen, show_state):
     new_items = []
     for key, event in events.items():
@@ -509,6 +722,14 @@ def process_new_events(events, seen, show_state):
             seen.add(key)
             show_state[key] = state_record(event, "SOLD_OUT")
             continue
+
+        # 0023/0025 직접필터에서 영화+날짜를 먼저 알린 경우,
+        # 실제 회차의 DETECTED 알림은 중복시키지 않고 OPEN/PREPARING 전이만 이어서 알린다.
+        if has_equivalent_state(show_state, event, direct_only=True):
+            seen.add(key)
+            show_state[key] = state_record(event, "DETECTED")
+            continue
+
         new_items.append((key, event))
 
     groups = {}
@@ -748,12 +969,20 @@ def run_fast_scan(seen, show_state, cache):
 
 def run_monitor(session, seen, show_state, started_at):
     cache = {}
-    target_dates = make_dates()
     report_started = time.monotonic()
     window_requests = window_success = window_errors = window_alerts = 0
     total_requests = total_cycles = 0
     last_fast_slot = None
 
+    # 시작하자마자 0025 직접필터부터 확인한다.
+    # 일반 회차 API에 아직 상세 row가 없어도 영화/날짜 신호를 먼저 잡고,
+    # 그 날짜는 요일과 무관하게 이후 상세감시에 자동 편입한다.
+    direct = run_direct_filter_scan(session, seen, show_state)
+    window_alerts += direct["alerts"]
+    window_errors += direct["errors"]
+    next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
+
+    target_dates = make_dates()
     result = run_cycle(session, seen, show_state, cache, target_dates, "일반 전체스캔")
     total_cycles += 1
     total_requests += result["requests"]
@@ -767,15 +996,26 @@ def run_monitor(session, seen, show_state, started_at):
         else max(time.monotonic(), result["started"] + FULL_SCAN_INTERVAL)
     )
 
-    print(f"📡 무대인사 일반감시 | TODAY~+42 중 {TARGET_DAY_LABEL}만 | 전체 120초 주기")
-    print(f"⚡ 00/30 추가점검 | +4~+21일 중 {TARGET_DAY_LABEL}만 | 2 workers")
-    print("🎯 무대인사 판정: videoAddexpCd=0025 ONLY")
+    print(
+        f"📡 무대인사 일반감시 | 기본 {TARGET_DAY_LABEL} + 0025 직접필터 감지날짜 | "
+        "전체 120초 주기"
+    )
+    print("🎯 무대인사 0025 직접필터 | 영화목록+용산 날짜목록 | 30초 주기")
+    print(f"⚡ 00/30 추가점검 | +4~+21일 중 {TARGET_DAY_LABEL}+직접필터 날짜 | 2 workers")
+    print("🎯 무대인사 판정: videoAddexpCd=0025 + 무대인사 텍스트 fallback")
 
     while time.monotonic() - started_at < RUN_SECONDS and 6 <= now_kst().hour <= 23:
         mono = time.monotonic()
         remaining = RUN_SECONDS - (mono - started_at)
         if remaining <= 0:
             break
+
+        if mono >= next_direct_scan:
+            direct = run_direct_filter_scan(session, seen, show_state)
+            window_alerts += direct["alerts"]
+            window_errors += direct["errors"]
+            next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
+            continue
 
         wall = now_kst()
         if wall.minute in FAST_SCAN_MINUTES:
@@ -797,7 +1037,8 @@ def run_monitor(session, seen, show_state, started_at):
             print(
                 f"{icon} {label} | 최근 10분 날짜조회 {window_requests}회 / 성공 {window_success}회 | "
                 f"누적 전체스캔 {total_cycles}회 / 누적 날짜조회 {total_requests}회 | "
-                f"무대인사 {count_stage(merged_cache(cache))} | Discord 알림 {window_alerts} | 오류 {window_errors}"
+                f"무대인사 {count_stage(merged_cache(cache))} | 직접필터 날짜 {len(DIRECT_SIGNAL_DATES)} | "
+                f"Discord 알림 {window_alerts} | 오류 {window_errors}"
             )
             report_started = mono
             window_requests = window_success = window_errors = window_alerts = 0
@@ -819,7 +1060,13 @@ def run_monitor(session, seen, show_state, started_at):
             )
             continue
 
-        time.sleep(min(max(0.05, next_regular - mono), remaining, 0.5))
+        sleep_for = min(
+            max(0.05, next_regular - mono),
+            max(0.05, next_direct_scan - mono),
+            remaining,
+            0.5,
+        )
+        time.sleep(sleep_for)
 
     save_seen(seen)
     save_booking_state(show_state)
@@ -838,10 +1085,10 @@ def main():
     print("=" * 72)
     print("BRANCH:", SITE_NAME)
     print("SITE NO:", SITE_NO)
-    print("TARGET: 무대인사 ONLY / videoAddexpCd=0025")
-    print(f"TARGET DAYS: {TARGET_DAY_LABEL} ONLY")
+    print("TARGET: 무대인사 ONLY / 0025 직접필터 + videoAddexpCd=0025 + 무대인사 text fallback")
+    print(f"TARGET DAYS: {TARGET_DAY_LABEL} + 0025 직접필터 감지날짜")
     print("DATE RANGE: TODAY ~ +42 DAYS")
-    print("SCAN: 대상 날짜 전체 120초 + 00/30 +4~+21일 2 workers")
+    print("SCAN: 대상 날짜 120초 + 0025 직접필터 30초 + 00/30 +4~+21일 2 workers")
     print("SOLD OUT / REOPEN: 사용자 알림 없음 / 내부 상태만 저장")
     print("ALERT: 날짜 + 영화 + 무대인사 묶음 / 영화 제목에만 예매 링크")
     print("RUN SECONDS:", RUN_SECONDS)

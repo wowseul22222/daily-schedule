@@ -48,6 +48,13 @@ RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "86400"))
 BOOKING_PAGE = "https://cgv.co.kr/cnm/movieBook"
 API_URL = "https://cgv.co.kr/api/v1/booking/searchMovScnInfo"
 
+# CGV 영상부가체험 직접 필터. 일반 극장/날짜 API보다 GV 영화/날짜가 먼저 뜨는 경우를 잡는다.
+DIRECT_MOVIE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchAtktTopPostrList"
+DIRECT_DATE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchSiteScnscYmdListByMov"
+DIRECT_FILTER_CODE = GV_CODE
+DIRECT_SCAN_INTERVAL = 30.0
+DIRECT_SCAN_TIMEOUT = 12
+
 # 이번 GV ONLY 개편용 새 상태 파일. 이전 통합 감시 상태와 섞지 않는다.
 STATE_FILE = "seen_cgv_yongsan_gv_v2.json"
 BASELINE_FILE = "baseline_cgv_yongsan_gv_v2.done"
@@ -344,6 +351,124 @@ def state_record(event, status=None):
     }
 
 
+def iter_dicts(value):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from iter_dicts(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from iter_dicts(child)
+
+
+def extract_direct_movies(data):
+    movies = {}
+    for row in iter_dicts(data):
+        mov_no = clean(row.get("movNo"))
+        if not mov_no:
+            continue
+        movie = clean(row.get("movNm") or row.get("expoProdNm") or row.get("iMovNm") or row.get("movName"))
+        movies[mov_no] = movie
+    return movies
+
+
+def extract_direct_dates(data):
+    dates = set()
+    for row in iter_dicts(data):
+        ymd = clean(row.get("scnYmd"))
+        if re.fullmatch(r"\d{8}", ymd):
+            dates.add(ymd)
+    return dates
+
+
+def direct_filter_link(date, mov_no):
+    return "https://cgv.co.kr/cnm/movieBook/movie?" + urlencode({
+        "movNo": clean(mov_no),
+        "scnYmd": clean(date),
+        "siteNo": SITE_NO,
+        "siteNm": SITE_NAME,
+        "div": "VIDEO_ADDEXP_CD",
+        "attrCd": DIRECT_FILTER_CODE,
+    })
+
+
+def direct_event_key(date, mov_no):
+    return "|".join([SITE_NO, clean(date), clean(mov_no), "GV_DIRECT_0023"])
+
+
+def make_direct_event(date, mov_no, movie):
+    return {
+        "date": clean(date),
+        "type": "GV",
+        "movie": clean(movie) or f"영화번호 {clean(mov_no)}",
+        "mov_no": clean(mov_no),
+        "prod_no": "",
+        "screen": "",
+        "time": "",
+        "end_time": "",
+        "status": "UNKNOWN",
+        "status_source": "VIDEO_ADDEXP_CD=0023 direct filter",
+        "link": direct_filter_link(date, mov_no),
+        "row": {
+            "movNo": clean(mov_no),
+            "movNm": clean(movie),
+            "videoAddexpCd": DIRECT_FILTER_CODE,
+            "videoAddexpCdNm": "GV",
+            "_directSynthetic": True,
+        },
+    }
+
+
+def scan_direct_filter(session):
+    """0023 전용 영화목록 -> 용산 날짜목록. 상세 회차가 숨겨져 있어도 영화/날짜 신호를 먼저 잡는다."""
+    today = now_kst().date()
+    valid_dates = {
+        (today + timedelta(days=i)).strftime("%Y%m%d")
+        for i in range(DAYS)
+    }
+    response = session.get(
+        DIRECT_MOVIE_LIST_URL,
+        params={
+            "coCd": CO_CD,
+            "movNm": "",
+            "div": "VIDEO_ADDEXP_CD",
+            "attrCd": DIRECT_FILTER_CODE,
+        },
+        headers={**HEADERS, "Referer": "https://cgv.co.kr/cnm/movieBook/movie"},
+        timeout=DIRECT_SCAN_TIMEOUT,
+    )
+    response.raise_for_status()
+    movies = extract_direct_movies(response.json())
+
+    signals = {}
+    errors = 0
+    for mov_no, movie in movies.items():
+        try:
+            dr = session.get(
+                DIRECT_DATE_LIST_URL,
+                params={
+                    "coCd": CO_CD,
+                    "siteNo": SITE_NO,
+                    "movNo": mov_no,
+                    "div": "VIDEO_ADDEXP_CD",
+                    "attrCd": DIRECT_FILTER_CODE,
+                },
+                headers={**HEADERS, "Referer": "https://cgv.co.kr/cnm/movieBook/movie"},
+                timeout=DIRECT_SCAN_TIMEOUT,
+            )
+            dr.raise_for_status()
+            dates = extract_direct_dates(dr.json()) & valid_dates
+        except Exception as error:
+            errors += 1
+            print(f"⚠️ GV 직접필터 날짜조회 오류 | MOV={mov_no} | {repr(error)}")
+            continue
+
+        for date in dates:
+            key = direct_event_key(date, mov_no)
+            signals[key] = make_direct_event(date, mov_no, movie)
+
+    return signals, errors
+
 def extract_rows(data):
     if isinstance(data, dict) and isinstance(data.get("data"), list):
         return [row for row in data["data"] if isinstance(row, dict)]
@@ -485,6 +610,73 @@ def send_alert_group(events, status):
     return messages
 
 
+def same_movie_date(record, event):
+    if not isinstance(record, dict):
+        return False
+    if clean(record.get("date")) != clean(event.get("date")):
+        return False
+    record_mov = clean(record.get("mov_no"))
+    event_mov = clean(event.get("mov_no"))
+    if record_mov and event_mov:
+        return record_mov == event_mov
+    a = re.sub(r"\s+", "", clean(record.get("movie"))).casefold()
+    b = re.sub(r"\s+", "", clean(event.get("movie"))).casefold()
+    return bool(a and b and (a == b or a in b or b in a))
+
+
+def has_equivalent_state(show_state, event, direct_only=False):
+    for record in show_state.values():
+        if direct_only and "direct filter" not in clean(record.get("status_source")).casefold():
+            continue
+        if same_movie_date(record, event):
+            return True
+    return False
+
+
+def process_direct_signals(signals, seen, show_state):
+    alerts = 0
+    new_count = 0
+    for key, event in sorted(signals.items()):
+        if key in seen:
+            continue
+
+        # 이미 실제 회차로 알고 있는 GV라면 직접필터 키만 조용히 동기화한다.
+        if has_equivalent_state(show_state, event):
+            seen.add(key)
+            show_state[key] = state_record(event, "DETECTED")
+            continue
+
+        message_count = send_alert_group([event], "DETECTED")
+        if message_count <= 0:
+            continue
+
+        alerts += message_count
+        new_count += 1
+        seen.add(key)
+        show_state[key] = state_record(event, "DETECTED")
+
+    if new_count:
+        save_seen(seen)
+        save_booking_state(show_state)
+    return alerts, new_count
+
+
+def run_direct_filter_scan(session, seen, show_state):
+    started = time.monotonic()
+    try:
+        signals, inner_errors = scan_direct_filter(session)
+        alerts, new_count = process_direct_signals(signals, seen, show_state)
+        elapsed = time.monotonic() - started
+        print(
+            f"🎯 GV 0023 직접필터 완료 | 신호 {len(signals)} | 신규 {new_count} | "
+            f"Discord 알림 {alerts} | 오류 {inner_errors} | {elapsed:.2f}초"
+        )
+        return {"signals": len(signals), "alerts": alerts, "errors": inner_errors}
+    except Exception as error:
+        elapsed = time.monotonic() - started
+        print(f"❌ GV 0023 직접필터 오류 | {repr(error)} | {elapsed:.2f}초")
+        return {"signals": 0, "alerts": 0, "errors": 1}
+
 def process_new_events(events, seen, show_state):
     # 새 회차가 처음부터 매진이면 사용자 알림 없이 내부 상태만 등록한다.
     new_items = []
@@ -496,6 +688,14 @@ def process_new_events(events, seen, show_state):
             seen.add(key)
             show_state[key] = state_record(event, "SOLD_OUT")
             continue
+
+        # 0023/0025 직접필터에서 영화+날짜를 먼저 알린 경우,
+        # 실제 회차의 DETECTED 알림은 중복시키지 않고 OPEN/PREPARING 전이만 이어서 알린다.
+        if has_equivalent_state(show_state, event, direct_only=True):
+            seen.add(key)
+            show_state[key] = state_record(event, "DETECTED")
+            continue
+
         new_items.append((key, event))
 
     groups = {}
@@ -744,24 +944,41 @@ def run_fast_scan(seen, show_state, cache):
 
 def run_monitor(session, seen, show_state, started_at):
     cache = {}
-    next_due = build_schedule(show_state)
     last_request = 0.0
     last_fast_slot = None
     report_started = time.monotonic()
     window_requests = window_success = window_errors = window_alerts = 0
     total_requests = 0
 
+    # 시작하자마자 0023 직접필터부터 확인한다. 일반 회차 API에 아직 안 보이는 GV도 여기서 잡는다.
+    direct = run_direct_filter_scan(session, seen, show_state)
+    window_alerts += direct["alerts"]
+    window_errors += direct["errors"]
+    next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
+
+    next_due = build_schedule(show_state)
+
     print(
         "📡 GV 날짜별 분산 감시 | 오늘 5분 / 내일 20초 / +2~+4일 90초 / "
         "+5~+14일 30초 / +15~+30일 60초 / +31~+42일 5분"
     )
+    print("🎯 GV 0023 직접필터 | 영화목록+용산 날짜목록 | 30초 주기")
     print("⚡ GV 00/30 추가점검 | +4~+21일 | 2 workers")
+    print("🎯 GV 판정: videoAddexpCd=0023 + 관객과의대화/GV 텍스트 fallback")
 
     while time.monotonic() - started_at < RUN_SECONDS and 6 <= now_kst().hour <= 23:
         mono = time.monotonic()
         remaining = RUN_SECONDS - (mono - started_at)
         if remaining <= 0:
             break
+
+        # 일반 극장/날짜 API와 별도로 0023 필터를 계속 확인한다.
+        if mono >= next_direct_scan:
+            direct = run_direct_filter_scan(session, seen, show_state)
+            window_alerts += direct["alerts"]
+            window_errors += direct["errors"]
+            next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
+            continue
 
         wall = now_kst()
         if wall.minute in FAST_SCAN_MINUTES:
@@ -796,7 +1013,13 @@ def run_monitor(session, seen, show_state, started_at):
         due_date = min(next_due, key=next_due.get)
         due_at = next_due[due_date]
         if due_at > mono:
-            time.sleep(min(due_at - mono, remaining, 0.5))
+            wake_in = min(
+                due_at - mono,
+                max(0.0, next_direct_scan - mono),
+                remaining,
+                0.5,
+            )
+            time.sleep(max(0.05, wake_in))
             continue
 
         gap = MIN_REQUEST_GAP - (time.monotonic() - last_request)
@@ -842,7 +1065,7 @@ def main():
     print("=" * 72)
     print("BRANCH:", SITE_NAME)
     print("SITE NO:", SITE_NO)
-    print("TARGET: GV ONLY / videoAddexpCd=0023 + GV text fallback")
+    print("TARGET: GV ONLY / 0023 직접필터 + videoAddexpCd=0023 + GV text fallback")
     print("DATE RANGE: TODAY ~ +42 DAYS (43 DAYS TOTAL)")
     print("SOLD OUT / REOPEN: 사용자 알림 없음 / 내부 상태만 저장")
     print("ALERT: 날짜 + 영화 + GV 묶음 / 영화 제목에만 예매 링크")
