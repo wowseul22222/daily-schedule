@@ -1,6 +1,6 @@
 {
   "schema": "CGV_YONGSAN_STAGE_0025_V4_20260912",
-  "updated_at_kst": "2026-09-15T11:31:59.270258+09:00",
+  "updated_at_kst": "2026-09-15T18:48:16.616781+09:00",
   "shows": {
     "0013|20260912|30001342|20056519|006|3|1345|STAGE": {
       "status": "OPEN",
@@ -286,7 +286,7 @@
       "time": "1325",
       "end_time": "1547",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:28:06.616844+09:00"
+      "updated_at_kst": "2026-09-15T18:48:07.124178+09:00"
     },
     "0013|20260916|30001399|20056344|006|4|1615|STAGE": {
       "status": "SOLD_OUT",
@@ -299,7 +299,7 @@
       "time": "1615",
       "end_time": "1837",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:28:06.616864+09:00"
+      "updated_at_kst": "2026-09-15T18:48:07.124196+09:00"
     },
     "0013|20260916|30001399|20056344|007|3|1335|STAGE": {
       "status": "SOLD_OUT",
@@ -312,10 +312,10 @@
       "time": "1335",
       "end_time": "1557",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:28:06.616867+09:00"
+      "updated_at_kst": "2026-09-15T18:48:07.124201+09:00"
     },
     "0013|20260916|30001399|20056344|007|4|1625|STAGE": {
-      "status": "SOLD_OUT",
+      "status": "OPEN",
       "date": "20260916",
       "type": "무대인사",
       "movie": "인턴",
@@ -324,8 +324,8 @@
       "screen": "7관 (Laser)",
       "time": "1625",
       "end_time": "1847",
-      "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:28:06.616870+09:00"
+      "status_source": "frSeatCnt=1",
+      "updated_at_kst": "2026-09-15T18:48:07.124205+09:00"
     },
     "0013|20260916|30001399|20056344|014|3|1345|STAGE": {
       "status": "SOLD_OUT",
@@ -338,7 +338,7 @@
       "time": "1345",
       "end_time": "1607",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:28:06.616872+09:00"
+      "updated_at_kst": "2026-09-15T18:48:07.124208+09:00"
     },
     "0013|20260919|30001342|20056519|010|3|1310|STAGE": {
       "status": "OPEN",
@@ -350,8 +350,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1310",
       "end_time": "1529",
-      "status_source": "frSeatCnt=9",
-      "updated_at_kst": "2026-09-15T11:30:05.344968+09:00"
+      "status_source": "frSeatCnt=11",
+      "updated_at_kst": "2026-09-15T18:48:07.567079+09:00"
     },
     "0013|20260919|30001342|20056519|011|2|1040|STAGE": {
       "status": "OPEN",
@@ -363,8 +363,8 @@
       "screen": "13관 (Laser)",
       "time": "1040",
       "end_time": "1259",
-      "status_source": "frSeatCnt=71",
-      "updated_at_kst": "2026-09-15T11:30:05.344997+09:00"
+      "status_source": "frSeatCnt=67",
+      "updated_at_kst": "2026-09-15T18:48:07.567097+09:00"
     },
     "0013|20260919|30001342|20056519|011|3|1330|STAGE": {
       "status": "OPEN",
@@ -376,8 +376,8 @@
       "screen": "13관 (Laser)",
       "time": "1330",
       "end_time": "1549",
-      "status_source": "frSeatCnt=25",
-      "updated_at_kst": "2026-09-15T11:30:05.345004+09:00"
+      "status_source": "frSeatCnt=22",
+      "updated_at_kst": "2026-09-15T18:48:07.567101+09:00"
     },
     "0013|20260919|30001342|20056519|013|2|1030|STAGE": {
       "status": "OPEN",
@@ -389,8 +389,8 @@
       "screen": "15관 (Laser)",
       "time": "1030",
       "end_time": "1249",
-      "status_source": "frSeatCnt=96",
-      "updated_at_kst": "2026-09-15T11:30:05.345009+09:00"
+      "status_source": "frSeatCnt=91",
+      "updated_at_kst": "2026-09-15T18:48:07.567105+09:00"
     },
     "0013|20260923|30001314|20056139|005|5|1730|STAGE": {
       "status": "SOLD_OUT",
@@ -403,7 +403,7 @@
       "time": "1730",
       "end_time": "1951",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345132+09:00"
+      "updated_at_kst": "2026-09-15T18:48:08.766135+09:00"
     },
     "0013|20260923|30001314|20056139|005|6|2030|STAGE": {
       "status": "SOLD_OUT",
@@ -416,7 +416,7 @@
       "time": "2030",
       "end_time": "2251",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345139+09:00"
+      "updated_at_kst": "2026-09-15T18:48:08.766153+09:00"
     },
     "0013|20260923|30001314|20056139|006|5|1740|STAGE": {
       "status": "SOLD_OUT",
@@ -429,7 +429,7 @@
       "time": "1740",
       "end_time": "2001",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345144+09:00"
+      "updated_at_kst": "2026-09-15T18:48:08.766157+09:00"
     },
     "0013|20260923|30001314|20056139|006|6|2040|STAGE": {
       "status": "SOLD_OUT",
@@ -442,7 +442,7 @@
       "time": "2040",
       "end_time": "2301",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345150+09:00"
+      "updated_at_kst": "2026-09-15T18:48:08.766161+09:00"
     },
     "0013|20260923|30001314|20056139|007|5|1750|STAGE": {
       "status": "SOLD_OUT",
@@ -455,7 +455,7 @@
       "time": "1750",
       "end_time": "2011",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345155+09:00"
+      "updated_at_kst": "2026-09-15T18:48:08.766164+09:00"
     },
     "0013|20260923|30001314|20056139|007|6|2050|STAGE": {
       "status": "SOLD_OUT",
@@ -468,7 +468,7 @@
       "time": "2050",
       "end_time": "2311",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345160+09:00"
+      "updated_at_kst": "2026-09-15T18:48:08.766167+09:00"
     },
     "0013|20260923|30001342|20056708|009|4|1720|STAGE": {
       "status": "OPEN",
@@ -480,8 +480,8 @@
       "screen": "11관 (Laser)",
       "time": "1720",
       "end_time": "1939",
-      "status_source": "frSeatCnt=111",
-      "updated_at_kst": "2026-09-15T11:30:05.345166+09:00"
+      "status_source": "frSeatCnt=106",
+      "updated_at_kst": "2026-09-15T18:48:08.766171+09:00"
     },
     "0013|20260923|30001342|20056708|010|3|1510|STAGE": {
       "status": "OPEN",
@@ -493,8 +493,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1510",
       "end_time": "1729",
-      "status_source": "frSeatCnt=92",
-      "updated_at_kst": "2026-09-15T11:30:05.345171+09:00"
+      "status_source": "frSeatCnt=88",
+      "updated_at_kst": "2026-09-15T18:48:08.766174+09:00"
     },
     "0013|20260923|30001342|20056708|011|3|1520|STAGE": {
       "status": "OPEN",
@@ -506,8 +506,8 @@
       "screen": "13관 (Laser)",
       "time": "1520",
       "end_time": "1739",
-      "status_source": "frSeatCnt=128",
-      "updated_at_kst": "2026-09-15T11:30:05.345176+09:00"
+      "status_source": "frSeatCnt=119",
+      "updated_at_kst": "2026-09-15T18:48:08.766177+09:00"
     },
     "0013|20260923|30001342|20056708|013|3|1540|STAGE": {
       "status": "OPEN",
@@ -519,8 +519,8 @@
       "screen": "15관 (Laser)",
       "time": "1540",
       "end_time": "1759",
-      "status_source": "frSeatCnt=168",
-      "updated_at_kst": "2026-09-15T11:30:05.345182+09:00"
+      "status_source": "frSeatCnt=160",
+      "updated_at_kst": "2026-09-15T18:48:08.766181+09:00"
     },
     "0013|20260923|30001314|20056139|014|5|1800|STAGE": {
       "status": "SOLD_OUT",
@@ -533,7 +533,7 @@
       "time": "1800",
       "end_time": "2021",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345188+09:00"
+      "updated_at_kst": "2026-09-15T18:48:08.766183+09:00"
     },
     "0013|20260923|30001314|20056139|014|6|2100|STAGE": {
       "status": "SOLD_OUT",
@@ -546,7 +546,7 @@
       "time": "2100",
       "end_time": "2321",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345193+09:00"
+      "updated_at_kst": "2026-09-15T18:48:08.766187+09:00"
     },
     "0013|20260923|30001342|20056708|015|4|1750|STAGE": {
       "status": "OPEN",
@@ -558,8 +558,8 @@
       "screen": "17관 (Laser)",
       "time": "1750",
       "end_time": "2009",
-      "status_source": "frSeatCnt=54",
-      "updated_at_kst": "2026-09-15T11:30:05.345198+09:00"
+      "status_source": "frSeatCnt=49",
+      "updated_at_kst": "2026-09-15T18:48:08.766190+09:00"
     },
     "0013|20260923|30001342|20056708|024|4|1750|STAGE": {
       "status": "OPEN",
@@ -571,8 +571,8 @@
       "screen": "17관[PREMIUM] (Laser)",
       "time": "1750",
       "end_time": "2009",
-      "status_source": "frSeatCnt=3",
-      "updated_at_kst": "2026-09-15T11:30:05.345204+09:00"
+      "status_source": "frSeatCnt=2",
+      "updated_at_kst": "2026-09-15T18:48:08.766193+09:00"
     },
     "0013|20260924|30001342|20056708|010|5|1845|STAGE": {
       "status": "OPEN",
@@ -585,7 +585,7 @@
       "time": "1845",
       "end_time": "2104",
       "status_source": "frSeatCnt=170",
-      "updated_at_kst": "2026-09-15T11:30:05.345245+09:00"
+      "updated_at_kst": "2026-09-15T18:48:09.180721+09:00"
     },
     "0013|20260924|30001342|20056708|011|4|1615|STAGE": {
       "status": "OPEN",
@@ -597,8 +597,8 @@
       "screen": "13관 (Laser)",
       "time": "1615",
       "end_time": "1834",
-      "status_source": "frSeatCnt=139",
-      "updated_at_kst": "2026-09-15T11:30:05.345250+09:00"
+      "status_source": "frSeatCnt=133",
+      "updated_at_kst": "2026-09-15T18:48:09.180738+09:00"
     },
     "0013|20260924|30001342|20056708|011|5|1905|STAGE": {
       "status": "OPEN",
@@ -610,8 +610,8 @@
       "screen": "13관 (Laser)",
       "time": "1905",
       "end_time": "2124",
-      "status_source": "frSeatCnt=158",
-      "updated_at_kst": "2026-09-15T11:30:05.345256+09:00"
+      "status_source": "frSeatCnt=159",
+      "updated_at_kst": "2026-09-15T18:48:09.180744+09:00"
     },
     "0013|20260924|30001342|20056708|013|4|1605|STAGE": {
       "status": "OPEN",
@@ -623,8 +623,8 @@
       "screen": "15관 (Laser)",
       "time": "1605",
       "end_time": "1824",
-      "status_source": "frSeatCnt=133",
-      "updated_at_kst": "2026-09-15T11:30:05.345261+09:00"
+      "status_source": "frSeatCnt=118",
+      "updated_at_kst": "2026-09-15T18:48:09.180748+09:00"
     },
     "0013|20260924|30001342|20056708|013|5|1855|STAGE": {
       "status": "OPEN",
@@ -637,7 +637,7 @@
       "time": "1855",
       "end_time": "2114",
       "status_source": "frSeatCnt=216",
-      "updated_at_kst": "2026-09-15T11:30:05.345267+09:00"
+      "updated_at_kst": "2026-09-15T18:48:09.180751+09:00"
     },
     "0013|20260925|30001399|20056344|005|4|1500|STAGE": {
       "status": "SOLD_OUT",
@@ -650,7 +650,7 @@
       "time": "1500",
       "end_time": "1722",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345362+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045516+09:00"
     },
     "0013|20260925|30001399|20056344|005|5|1750|STAGE": {
       "status": "SOLD_OUT",
@@ -663,7 +663,7 @@
       "time": "1750",
       "end_time": "2012",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345367+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045534+09:00"
     },
     "0013|20260925|30001399|20056344|006|4|1510|STAGE": {
       "status": "SOLD_OUT",
@@ -676,7 +676,7 @@
       "time": "1510",
       "end_time": "1732",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345372+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045538+09:00"
     },
     "0013|20260925|30001399|20056344|006|5|1800|STAGE": {
       "status": "SOLD_OUT",
@@ -689,7 +689,7 @@
       "time": "1800",
       "end_time": "2022",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345377+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045542+09:00"
     },
     "0013|20260925|30001399|20056344|007|4|1520|STAGE": {
       "status": "SOLD_OUT",
@@ -702,7 +702,7 @@
       "time": "1520",
       "end_time": "1742",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345381+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045545+09:00"
     },
     "0013|20260925|30001399|20056344|007|5|1810|STAGE": {
       "status": "SOLD_OUT",
@@ -715,7 +715,7 @@
       "time": "1810",
       "end_time": "2032",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345385+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045549+09:00"
     },
     "0013|20260925|30001342|20056708|010|2|1030|STAGE": {
       "status": "OPEN",
@@ -728,7 +728,7 @@
       "time": "1030",
       "end_time": "1249",
       "status_source": "frSeatCnt=163",
-      "updated_at_kst": "2026-09-15T11:30:05.345389+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045553+09:00"
     },
     "0013|20260925|30001314|20056139|010|5|1700|STAGE": {
       "status": "SOLD_OUT",
@@ -741,7 +741,7 @@
       "time": "1700",
       "end_time": "1921",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345392+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045556+09:00"
     },
     "0013|20260925|30001314|20056139|010|6|1950|STAGE": {
       "status": "SOLD_OUT",
@@ -754,7 +754,7 @@
       "time": "1950",
       "end_time": "2211",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345396+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045559+09:00"
     },
     "0013|20260925|30001342|20056708|011|2|1010|STAGE": {
       "status": "OPEN",
@@ -766,8 +766,8 @@
       "screen": "13관 (Laser)",
       "time": "1010",
       "end_time": "1229",
-      "status_source": "frSeatCnt=181",
-      "updated_at_kst": "2026-09-15T11:30:05.345399+09:00"
+      "status_source": "frSeatCnt=178",
+      "updated_at_kst": "2026-09-15T18:48:10.045561+09:00"
     },
     "0013|20260925|30001342|20056708|011|3|1300|STAGE": {
       "status": "OPEN",
@@ -779,8 +779,8 @@
       "screen": "13관 (Laser)",
       "time": "1300",
       "end_time": "1519",
-      "status_source": "frSeatCnt=143",
-      "updated_at_kst": "2026-09-15T11:30:05.345403+09:00"
+      "status_source": "frSeatCnt=141",
+      "updated_at_kst": "2026-09-15T18:48:10.045565+09:00"
     },
     "0013|20260925|30001314|20056139|011|5|1650|STAGE": {
       "status": "SOLD_OUT",
@@ -793,7 +793,7 @@
       "time": "1650",
       "end_time": "1911",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345406+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045568+09:00"
     },
     "0013|20260925|30001314|20056139|011|6|1940|STAGE": {
       "status": "SOLD_OUT",
@@ -806,7 +806,7 @@
       "time": "1940",
       "end_time": "2201",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345409+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045571+09:00"
     },
     "0013|20260925|30001342|20056708|013|2|1020|STAGE": {
       "status": "OPEN",
@@ -819,7 +819,7 @@
       "time": "1020",
       "end_time": "1239",
       "status_source": "frSeatCnt=245",
-      "updated_at_kst": "2026-09-15T11:30:05.345412+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045574+09:00"
     },
     "0013|20260925|30001342|20056708|013|3|1310|STAGE": {
       "status": "OPEN",
@@ -831,8 +831,8 @@
       "screen": "15관 (Laser)",
       "time": "1310",
       "end_time": "1529",
-      "status_source": "frSeatCnt=158",
-      "updated_at_kst": "2026-09-15T11:30:05.345415+09:00"
+      "status_source": "frSeatCnt=151",
+      "updated_at_kst": "2026-09-15T18:48:10.045577+09:00"
     },
     "0013|20260925|30001314|20056139|013|5|1640|STAGE": {
       "status": "SOLD_OUT",
@@ -845,7 +845,7 @@
       "time": "1640",
       "end_time": "1901",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345418+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045580+09:00"
     },
     "0013|20260925|30001314|20056139|013|6|1930|STAGE": {
       "status": "SOLD_OUT",
@@ -858,7 +858,7 @@
       "time": "1930",
       "end_time": "2151",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345421+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.045583+09:00"
     },
     "0013|20260926|30001399|20056344|009|4|1710|STAGE": {
       "status": "SOLD_OUT",
@@ -871,10 +871,10 @@
       "time": "1710",
       "end_time": "1932",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345449+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.420330+09:00"
     },
     "0013|20260926|30001399|20056344|010|4|1700|STAGE": {
-      "status": "OPEN",
+      "status": "SOLD_OUT",
       "date": "20260926",
       "type": "무대인사",
       "movie": "인턴",
@@ -883,8 +883,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1700",
       "end_time": "1922",
-      "status_source": "frSeatCnt=1",
-      "updated_at_kst": "2026-09-15T11:30:05.345452+09:00"
+      "status_source": "frSeatCnt=0",
+      "updated_at_kst": "2026-09-15T18:48:10.420347+09:00"
     },
     "0013|20260926|30001399|20056344|010|5|1950|STAGE": {
       "status": "SOLD_OUT",
@@ -897,7 +897,7 @@
       "time": "1950",
       "end_time": "2212",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345455+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.420352+09:00"
     },
     "0013|20260926|30001399|20056344|011|4|1650|STAGE": {
       "status": "SOLD_OUT",
@@ -910,7 +910,7 @@
       "time": "1650",
       "end_time": "1912",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345459+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.420356+09:00"
     },
     "0013|20260926|30001399|20056344|011|5|1940|STAGE": {
       "status": "SOLD_OUT",
@@ -923,7 +923,7 @@
       "time": "1940",
       "end_time": "2202",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345462+09:00"
+      "updated_at_kst": "2026-09-15T18:48:10.420359+09:00"
     },
     "0013|20260927|30001314|20056139|009|4|1640|STAGE": {
       "status": "SOLD_OUT",
@@ -936,7 +936,7 @@
       "time": "1640",
       "end_time": "1901",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345515+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.134130+09:00"
     },
     "0013|20260927|30001314|20056139|009|5|1940|STAGE": {
       "status": "SOLD_OUT",
@@ -949,7 +949,7 @@
       "time": "1940",
       "end_time": "2201",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345518+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.134147+09:00"
     },
     "0013|20260927|30001342|20056708|010|3|1300|STAGE": {
       "status": "OPEN",
@@ -961,8 +961,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1300",
       "end_time": "1519",
-      "status_source": "frSeatCnt=132",
-      "updated_at_kst": "2026-09-15T11:30:05.345522+09:00"
+      "status_source": "frSeatCnt=130",
+      "updated_at_kst": "2026-09-15T18:48:11.134152+09:00"
     },
     "0013|20260927|30001342|20056708|010|4|1550|STAGE": {
       "status": "OPEN",
@@ -974,8 +974,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1550",
       "end_time": "1809",
-      "status_source": "frSeatCnt=92",
-      "updated_at_kst": "2026-09-15T11:30:05.345525+09:00"
+      "status_source": "frSeatCnt=108",
+      "updated_at_kst": "2026-09-15T18:48:11.134156+09:00"
     },
     "0013|20260927|30001314|20056139|010|5|1910|STAGE": {
       "status": "SOLD_OUT",
@@ -988,7 +988,7 @@
       "time": "1910",
       "end_time": "2131",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345528+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.134160+09:00"
     },
     "0013|20260927|30001342|20056708|011|3|1250|STAGE": {
       "status": "OPEN",
@@ -1001,7 +1001,7 @@
       "time": "1250",
       "end_time": "1509",
       "status_source": "frSeatCnt=150",
-      "updated_at_kst": "2026-09-15T11:30:05.345532+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.134164+09:00"
     },
     "0013|20260927|30001342|20056708|011|4|1540|STAGE": {
       "status": "OPEN",
@@ -1013,8 +1013,8 @@
       "screen": "13관 (Laser)",
       "time": "1540",
       "end_time": "1759",
-      "status_source": "frSeatCnt=124",
-      "updated_at_kst": "2026-09-15T11:30:05.345535+09:00"
+      "status_source": "frSeatCnt=115",
+      "updated_at_kst": "2026-09-15T18:48:11.134167+09:00"
     },
     "0013|20260927|30001314|20056139|011|5|1850|STAGE": {
       "status": "SOLD_OUT",
@@ -1027,7 +1027,7 @@
       "time": "1850",
       "end_time": "2111",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345538+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.134171+09:00"
     },
     "0013|20260927|30001342|20056708|013|3|1310|STAGE": {
       "status": "OPEN",
@@ -1039,8 +1039,8 @@
       "screen": "15관 (Laser)",
       "time": "1310",
       "end_time": "1529",
-      "status_source": "frSeatCnt=152",
-      "updated_at_kst": "2026-09-15T11:30:05.345541+09:00"
+      "status_source": "frSeatCnt=150",
+      "updated_at_kst": "2026-09-15T18:48:11.134174+09:00"
     },
     "0013|20260927|30001314|20056139|013|4|1620|STAGE": {
       "status": "SOLD_OUT",
@@ -1053,7 +1053,7 @@
       "time": "1620",
       "end_time": "1841",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345544+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.134178+09:00"
     },
     "0013|20260927|30001314|20056139|013|5|1920|STAGE": {
       "status": "SOLD_OUT",
@@ -1066,7 +1066,7 @@
       "time": "1920",
       "end_time": "2141",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345546+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.134180+09:00"
     },
     "0013|20260927|30001314|20056139|015|5|1710|STAGE": {
       "status": "SOLD_OUT",
@@ -1079,10 +1079,10 @@
       "time": "1710",
       "end_time": "1931",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345549+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.134183+09:00"
     },
     "0013|20260930|30001376|20056822|005|3|1425|STAGE": {
-      "status": "OPEN",
+      "status": "SOLD_OUT",
       "date": "20260930",
       "type": "무대인사",
       "movie": "부활남-더 레드",
@@ -1091,11 +1091,11 @@
       "screen": "5관 (Laser)",
       "time": "1425",
       "end_time": "1616",
-      "status_source": "frSeatCnt=1",
-      "updated_at_kst": "2026-09-15T11:30:05.345567+09:00"
+      "status_source": "frSeatCnt=0",
+      "updated_at_kst": "2026-09-15T18:48:11.479103+09:00"
     },
     "0013|20260930|30001376|20056822|006|4|1630|STAGE": {
-      "status": "OPEN",
+      "status": "SOLD_OUT",
       "date": "20260930",
       "type": "무대인사",
       "movie": "부활남-더 레드",
@@ -1104,8 +1104,8 @@
       "screen": "6관 (Laser)",
       "time": "1630",
       "end_time": "1821",
-      "status_source": "frSeatCnt=3",
-      "updated_at_kst": "2026-09-15T11:30:05.345570+09:00"
+      "status_source": "frSeatCnt=0",
+      "updated_at_kst": "2026-09-15T18:48:11.479121+09:00"
     },
     "0013|20260930|30001376|20056822|007|4|1640|STAGE": {
       "status": "SOLD_OUT",
@@ -1118,7 +1118,7 @@
       "time": "1640",
       "end_time": "1831",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-15T11:30:05.345574+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.479126+09:00"
     },
     "0013|20261003|30001376|20056822|001|3|1135|STAGE": {
       "status": "OPEN",
@@ -1131,7 +1131,7 @@
       "time": "1135",
       "end_time": "1326",
       "status_source": "frSeatCnt=2",
-      "updated_at_kst": "2026-09-15T11:30:05.345611+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.973188+09:00"
     },
     "0013|20261003|30001376|20056822|001|4|1400|STAGE": {
       "status": "OPEN",
@@ -1143,8 +1143,8 @@
       "screen": "1관 (Laser)",
       "time": "1400",
       "end_time": "1551",
-      "status_source": "frSeatCnt=3",
-      "updated_at_kst": "2026-09-15T11:30:05.345615+09:00"
+      "status_source": "frSeatCnt=4",
+      "updated_at_kst": "2026-09-15T18:48:11.973206+09:00"
     },
     "0013|20261003|30001376|20056822|002|3|1145|STAGE": {
       "status": "OPEN",
@@ -1157,7 +1157,7 @@
       "time": "1145",
       "end_time": "1336",
       "status_source": "frSeatCnt=3",
-      "updated_at_kst": "2026-09-15T11:30:05.345618+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.973211+09:00"
     },
     "0013|20261003|30001376|20056822|002|4|1410|STAGE": {
       "status": "OPEN",
@@ -1170,7 +1170,7 @@
       "time": "1410",
       "end_time": "1601",
       "status_source": "frSeatCnt=5",
-      "updated_at_kst": "2026-09-15T11:30:05.345621+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.973215+09:00"
     },
     "0013|20261003|30001399|20056344|006|5|1715|STAGE": {
       "status": "OPEN",
@@ -1182,8 +1182,8 @@
       "screen": "6관 (Laser)",
       "time": "1715",
       "end_time": "1937",
-      "status_source": "frSeatCnt=17",
-      "updated_at_kst": "2026-09-15T11:30:05.345624+09:00"
+      "status_source": "frSeatCnt=13",
+      "updated_at_kst": "2026-09-15T18:48:11.973218+09:00"
     },
     "0013|20261003|30001399|20056344|006|6|2005|STAGE": {
       "status": "OPEN",
@@ -1195,8 +1195,8 @@
       "screen": "6관 (Laser)",
       "time": "2005",
       "end_time": "2227",
-      "status_source": "frSeatCnt=42",
-      "updated_at_kst": "2026-09-15T11:30:05.345627+09:00"
+      "status_source": "frSeatCnt=40",
+      "updated_at_kst": "2026-09-15T18:48:11.973222+09:00"
     },
     "0013|20261003|30001399|20056344|007|5|1730|STAGE": {
       "status": "OPEN",
@@ -1208,8 +1208,8 @@
       "screen": "7관 (Laser)",
       "time": "1730",
       "end_time": "1952",
-      "status_source": "frSeatCnt=19",
-      "updated_at_kst": "2026-09-15T11:30:05.345630+09:00"
+      "status_source": "frSeatCnt=17",
+      "updated_at_kst": "2026-09-15T18:48:11.973225+09:00"
     },
     "0013|20261003|30001399|20056344|007|6|2015|STAGE": {
       "status": "OPEN",
@@ -1221,8 +1221,8 @@
       "screen": "7관 (Laser)",
       "time": "2015",
       "end_time": "2237",
-      "status_source": "frSeatCnt=37",
-      "updated_at_kst": "2026-09-15T11:30:05.345633+09:00"
+      "status_source": "frSeatCnt=32",
+      "updated_at_kst": "2026-09-15T18:48:11.973228+09:00"
     },
     "0013|20261003|30001399|20056344|013|5|1810|STAGE": {
       "status": "OPEN",
@@ -1235,7 +1235,7 @@
       "time": "1810",
       "end_time": "2032",
       "status_source": "frSeatCnt=33",
-      "updated_at_kst": "2026-09-15T11:30:05.345636+09:00"
+      "updated_at_kst": "2026-09-15T18:48:11.973231+09:00"
     },
     "0013|20261005|30001376|20056822|009|3|1120|STAGE": {
       "status": "OPEN",
@@ -1247,8 +1247,8 @@
       "screen": "11관 (Laser)",
       "time": "1120",
       "end_time": "1311",
-      "status_source": "frSeatCnt=22",
-      "updated_at_kst": "2026-09-15T11:30:05.345659+09:00"
+      "status_source": "frSeatCnt=19",
+      "updated_at_kst": "2026-09-15T18:48:12.721925+09:00"
     },
     "0013|20261005|30001376|20056822|011|3|1110|STAGE": {
       "status": "OPEN",
@@ -1260,8 +1260,8 @@
       "screen": "13관 (Laser)",
       "time": "1110",
       "end_time": "1301",
-      "status_source": "frSeatCnt=41",
-      "updated_at_kst": "2026-09-15T11:30:05.345662+09:00"
+      "status_source": "frSeatCnt=33",
+      "updated_at_kst": "2026-09-15T18:48:12.721944+09:00"
     },
     "0013|20261005|30001376|20056822|011|4|1335|STAGE": {
       "status": "OPEN",
@@ -1273,8 +1273,8 @@
       "screen": "13관 (Laser)",
       "time": "1335",
       "end_time": "1526",
-      "status_source": "frSeatCnt=38",
-      "updated_at_kst": "2026-09-15T11:30:05.345665+09:00"
+      "status_source": "frSeatCnt=34",
+      "updated_at_kst": "2026-09-15T18:48:12.721949+09:00"
     },
     "0013|20261005|30001376|20056822|013|3|1100|STAGE": {
       "status": "OPEN",
@@ -1286,8 +1286,8 @@
       "screen": "15관 (Laser)",
       "time": "1100",
       "end_time": "1251",
-      "status_source": "frSeatCnt=50",
-      "updated_at_kst": "2026-09-15T11:30:05.345667+09:00"
+      "status_source": "frSeatCnt=48",
+      "updated_at_kst": "2026-09-15T18:48:12.721952+09:00"
     },
     "0013|20261005|30001376|20056822|013|4|1325|STAGE": {
       "status": "OPEN",
@@ -1299,8 +1299,8 @@
       "screen": "15관 (Laser)",
       "time": "1325",
       "end_time": "1516",
-      "status_source": "frSeatCnt=43",
-      "updated_at_kst": "2026-09-15T11:30:05.345670+09:00"
+      "status_source": "frSeatCnt=40",
+      "updated_at_kst": "2026-09-15T18:48:12.721956+09:00"
     },
     "0013|20261009|30001342|20056708|006|4|1555|STAGE": {
       "status": "OPEN",
@@ -1312,8 +1312,8 @@
       "screen": "6관 (Laser)",
       "time": "1555",
       "end_time": "1814",
-      "status_source": "frSeatCnt=131",
-      "updated_at_kst": "2026-09-15T11:28:12.601375+09:00"
+      "status_source": "frSeatCnt=128",
+      "updated_at_kst": "2026-09-15T18:48:13.703560+09:00"
     },
     "0013|20261009|30001342|20056708|006|5|1845|STAGE": {
       "status": "OPEN",
@@ -1325,8 +1325,8 @@
       "screen": "6관 (Laser)",
       "time": "1845",
       "end_time": "2104",
-      "status_source": "frSeatCnt=158",
-      "updated_at_kst": "2026-09-15T11:28:12.601394+09:00"
+      "status_source": "frSeatCnt=154",
+      "updated_at_kst": "2026-09-15T18:48:13.703579+09:00"
     },
     "0013|20261009|30001342|20056708|007|4|1605|STAGE": {
       "status": "OPEN",
@@ -1338,8 +1338,8 @@
       "screen": "7관 (Laser)",
       "time": "1605",
       "end_time": "1824",
-      "status_source": "frSeatCnt=140",
-      "updated_at_kst": "2026-09-15T11:28:12.601399+09:00"
+      "status_source": "frSeatCnt=137",
+      "updated_at_kst": "2026-09-15T18:48:13.703584+09:00"
     },
     "0013|20261009|30001314|20056139|010|5|1705|STAGE": {
       "status": "OPEN",
@@ -1351,8 +1351,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1705",
       "end_time": "1926",
-      "status_source": "frSeatCnt=9",
-      "updated_at_kst": "2026-09-15T11:28:12.601402+09:00"
+      "status_source": "frSeatCnt=7",
+      "updated_at_kst": "2026-09-15T18:48:13.703587+09:00"
     },
     "0013|20261009|30001314|20056139|011|5|1655|STAGE": {
       "status": "OPEN",
@@ -1365,7 +1365,7 @@
       "time": "1655",
       "end_time": "1916",
       "status_source": "frSeatCnt=19",
-      "updated_at_kst": "2026-09-15T11:28:12.601405+09:00"
+      "updated_at_kst": "2026-09-15T18:48:13.703591+09:00"
     },
     "0013|20261009|30001314|20056139|011|6|1945|STAGE": {
       "status": "OPEN",
@@ -1377,8 +1377,8 @@
       "screen": "13관 (Laser)",
       "time": "1945",
       "end_time": "2206",
-      "status_source": "frSeatCnt=27",
-      "updated_at_kst": "2026-09-15T11:28:12.601408+09:00"
+      "status_source": "frSeatCnt=24",
+      "updated_at_kst": "2026-09-15T18:48:13.703595+09:00"
     },
     "0013|20261009|30001314|20056139|013|5|1645|STAGE": {
       "status": "OPEN",
@@ -1390,8 +1390,8 @@
       "screen": "15관 (Laser)",
       "time": "1645",
       "end_time": "1906",
-      "status_source": "frSeatCnt=24",
-      "updated_at_kst": "2026-09-15T11:28:12.601411+09:00"
+      "status_source": "frSeatCnt=18",
+      "updated_at_kst": "2026-09-15T18:48:13.703598+09:00"
     },
     "0013|20261009|30001314|20056139|013|6|1935|STAGE": {
       "status": "OPEN",
@@ -1404,7 +1404,7 @@
       "time": "1935",
       "end_time": "2156",
       "status_source": "frSeatCnt=28",
-      "updated_at_kst": "2026-09-15T11:28:12.601413+09:00"
+      "updated_at_kst": "2026-09-15T18:48:13.703601+09:00"
     },
     "0013|20261009|30001342|20056708|014|5|1835|STAGE": {
       "status": "OPEN",
@@ -1416,8 +1416,8 @@
       "screen": "16관 (Laser)",
       "time": "1835",
       "end_time": "2054",
-      "status_source": "frSeatCnt=103",
-      "updated_at_kst": "2026-09-15T11:28:12.601416+09:00"
+      "status_source": "frSeatCnt=99",
+      "updated_at_kst": "2026-09-15T18:48:13.703604+09:00"
     },
     "0013|20261010|30001342|20056708|005|3|1250|STAGE": {
       "status": "OPEN",
@@ -1430,7 +1430,7 @@
       "time": "1250",
       "end_time": "1509",
       "status_source": "frSeatCnt=150",
-      "updated_at_kst": "2026-09-15T11:28:13.096918+09:00"
+      "updated_at_kst": "2026-09-15T18:48:14.243257+09:00"
     },
     "0013|20261010|30001342|20056708|006|2|1010|STAGE": {
       "status": "OPEN",
@@ -1442,8 +1442,8 @@
       "screen": "6관 (Laser)",
       "time": "1010",
       "end_time": "1229",
-      "status_source": "frSeatCnt=166",
-      "updated_at_kst": "2026-09-15T11:28:13.096938+09:00"
+      "status_source": "frSeatCnt=165",
+      "updated_at_kst": "2026-09-15T18:48:14.243275+09:00"
     },
     "0013|20261010|30001342|20056708|006|3|1300|STAGE": {
       "status": "OPEN",
@@ -1455,8 +1455,8 @@
       "screen": "6관 (Laser)",
       "time": "1300",
       "end_time": "1519",
-      "status_source": "frSeatCnt=168",
-      "updated_at_kst": "2026-09-15T11:28:13.096941+09:00"
+      "status_source": "frSeatCnt=164",
+      "updated_at_kst": "2026-09-15T18:48:14.243280+09:00"
     },
     "0013|20261010|30001342|20056708|007|2|1020|STAGE": {
       "status": "OPEN",
@@ -1468,8 +1468,8 @@
       "screen": "7관 (Laser)",
       "time": "1020",
       "end_time": "1239",
-      "status_source": "frSeatCnt=166",
-      "updated_at_kst": "2026-09-15T11:28:13.096944+09:00"
+      "status_source": "frSeatCnt=164",
+      "updated_at_kst": "2026-09-15T18:48:14.243284+09:00"
     },
     "0013|20261010|30001342|20056708|007|3|1310|STAGE": {
       "status": "OPEN",
@@ -1481,8 +1481,8 @@
       "screen": "7관 (Laser)",
       "time": "1310",
       "end_time": "1529",
-      "status_source": "frSeatCnt=158",
-      "updated_at_kst": "2026-09-15T11:28:13.096947+09:00"
+      "status_source": "frSeatCnt=156",
+      "updated_at_kst": "2026-09-15T18:48:14.243287+09:00"
     },
     "0013|20261010|30001314|20056139|011|5|1710|STAGE": {
       "status": "OPEN",
@@ -1495,7 +1495,7 @@
       "time": "1710",
       "end_time": "1931",
       "status_source": "frSeatCnt=11",
-      "updated_at_kst": "2026-09-15T11:28:13.096950+09:00"
+      "updated_at_kst": "2026-09-15T18:48:14.243291+09:00"
     },
     "0013|20261010|30001314|20056139|011|6|1955|STAGE": {
       "status": "OPEN",
@@ -1507,8 +1507,8 @@
       "screen": "13관 (Laser)",
       "time": "1955",
       "end_time": "2216",
-      "status_source": "frSeatCnt=17",
-      "updated_at_kst": "2026-09-15T11:28:13.096952+09:00"
+      "status_source": "frSeatCnt=16",
+      "updated_at_kst": "2026-09-15T18:48:14.243294+09:00"
     },
     "0013|20261010|30001314|20056139|013|5|1700|STAGE": {
       "status": "OPEN",
@@ -1520,8 +1520,8 @@
       "screen": "15관 (Laser)",
       "time": "1700",
       "end_time": "1921",
-      "status_source": "frSeatCnt=10",
-      "updated_at_kst": "2026-09-15T11:28:13.096955+09:00"
+      "status_source": "frSeatCnt=6",
+      "updated_at_kst": "2026-09-15T18:48:14.243298+09:00"
     },
     "0013|20261010|30001314|20056139|013|6|1945|STAGE": {
       "status": "OPEN",
@@ -1534,7 +1534,7 @@
       "time": "1945",
       "end_time": "2206",
       "status_source": "frSeatCnt=15",
-      "updated_at_kst": "2026-09-15T11:28:13.096958+09:00"
+      "updated_at_kst": "2026-09-15T18:48:14.243301+09:00"
     }
   }
 }
