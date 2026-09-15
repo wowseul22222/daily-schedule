@@ -43,6 +43,9 @@ jobs:
           required = [
               'SITE_NO = "0013"',
               'GV_CODE = "0023"',
+              'DIRECT_FILTER_CODE = GV_CODE',
+              'searchAtktTopPostrList',
+              'searchSiteScnscYmdListByMov',
               'CGV YONGSAN GV-ONLY MONITOR',
               'RUN_SECONDS',
           ]
