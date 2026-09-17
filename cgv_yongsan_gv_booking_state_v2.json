@@ -1,6 +1,6 @@
 {
   "schema": "CGV_YONGSAN_GV_ONLY_V2_20260912",
-  "updated_at_kst": "2026-09-16T23:28:14.507590+09:00",
+  "updated_at_kst": "2026-09-17T14:08:34.151075+09:00",
   "shows": {
     "0013|20260912|30001399|20056439|015|5|1740|GV": {
       "status": "OPEN",
@@ -42,7 +42,7 @@
       "updated_at_kst": "2026-09-15T18:48:00.034681+09:00"
     },
     "0013|20260918|30001377|20056443|010|5|1930|GV": {
-      "status": "SOLD_OUT",
+      "status": "OPEN",
       "date": "20260918",
       "type": "GV",
       "movie": "더 드라마",
@@ -51,8 +51,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1930",
       "end_time": "2126",
-      "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-16T23:26:50.510300+09:00"
+      "status_source": "frSeatCnt=2",
+      "updated_at_kst": "2026-09-17T14:08:17.509306+09:00"
     },
     "0013|20260923|30001314|20056916|001|5|1920|GV": {
       "status": "SOLD_OUT",
@@ -65,7 +65,7 @@
       "time": "1920",
       "end_time": "2141",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-16T23:27:58.741352+09:00"
+      "updated_at_kst": "2026-09-17T14:08:32.102951+09:00"
     },
     "0013|20260924|30001465|20056789|009|3|1400|GV": {
       "status": "SOLD_OUT",
@@ -78,7 +78,7 @@
       "time": "1400",
       "end_time": "1612",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-16T23:27:59.077661+09:00"
+      "updated_at_kst": "2026-09-17T14:08:32.443795+09:00"
     },
     "0013|20260922|30001400|20056596|007|5|1930|GV": {
       "status": "OPEN",
@@ -90,8 +90,8 @@
       "screen": "7관 (Laser)",
       "time": "1930",
       "end_time": "2125",
-      "status_source": "frSeatCnt=46",
-      "updated_at_kst": "2026-09-16T23:27:58.400931+09:00"
+      "status_source": "frSeatCnt=43",
+      "updated_at_kst": "2026-09-17T14:08:31.736738+09:00"
     },
     "0013|20260918|30001377|GV_DIRECT_0023": {
       "status": "DETECTED",
