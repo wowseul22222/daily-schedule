@@ -25,14 +25,11 @@ CO_CD = "A420"
 RTCTL_SCOP_CD = "08"
 GV_CODE = "0023"
 
-DAYS = 43
-INTERVAL_TODAY = 300.0
-INTERVAL_TOMORROW = 20.0
-INTERVAL_2_4 = 90.0
-INTERVAL_5_14 = 30.0
-INTERVAL_15_30 = 60.0
-INTERVAL_31_42 = 300.0
-PREPARING_INTERVAL = 20.0
+DAYS = 43  # 기존 workflow 검증 호환용. 실제 감시 범위는 +4~+21일만 사용.
+SCAN_START_OFFSET = 4
+SCAN_END_OFFSET = 21
+SCAN_CYCLE_SECONDS = 8.0
+PREPARING_INTERVAL = 8.0
 MIN_REQUEST_GAP = 0.35
 RATE_LIMIT_COOLDOWN = 60.0
 SUMMARY_SECONDS = 600.0
@@ -41,6 +38,7 @@ FAST_SCAN_MINUTES = {0, 30}
 FAST_SCAN_START_OFFSET = 4
 FAST_SCAN_END_OFFSET = 21
 FAST_SCAN_WORKERS = 2
+FAST_SCAN_ENABLED = False  # 8초 상시감시와 중복되는 00/30 burst 비활성화
 
 # GitHub Actions workflow가 실행 구간을 RUN_SECONDS로 주입한다.
 RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "86400"))
@@ -52,7 +50,7 @@ API_URL = "https://cgv.co.kr/api/v1/booking/searchMovScnInfo"
 DIRECT_MOVIE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchAtktTopPostrList"
 DIRECT_DATE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchSiteScnscYmdListByMov"
 DIRECT_FILTER_CODE = GV_CODE
-DIRECT_SCAN_INTERVAL = 30.0
+DIRECT_SCAN_INTERVAL = 8.0
 DIRECT_SCAN_TIMEOUT = 12
 
 # 이번 GV ONLY 개편용 새 상태 파일. 이전 통합 감시 상태와 섞지 않는다.
@@ -119,8 +117,12 @@ def all_row_text(value):
 
 
 def make_dates():
+    """GV 신규 오픈 가능성이 높은 +4~+21일(18일)만 감시한다."""
     today = now_kst().date()
-    return [(today + timedelta(days=i)).strftime("%Y%m%d") for i in range(DAYS)]
+    return [
+        (today + timedelta(days=offset)).strftime("%Y%m%d")
+        for offset in range(SCAN_START_OFFSET, SCAN_END_OFFSET + 1)
+    ]
 
 
 def pretty_date(date):
@@ -836,17 +838,8 @@ def initialize_state(session, seen, show_state, state_ready):
 
 
 def interval_for_offset(offset):
-    if offset <= 0:
-        return INTERVAL_TODAY
-    if offset == 1:
-        return INTERVAL_TOMORROW
-    if offset <= 4:
-        return INTERVAL_2_4
-    if offset <= 14:
-        return INTERVAL_5_14
-    if offset <= 30:
-        return INTERVAL_15_30
-    return INTERVAL_31_42
+    # 활성 감시 날짜(+4~+21)는 모두 동일하게 약 8초마다 재확인한다.
+    return SCAN_CYCLE_SECONDS
 
 
 def has_preparing(date, show_state):
@@ -959,11 +952,10 @@ def run_monitor(session, seen, show_state, started_at):
     next_due = build_schedule(show_state)
 
     print(
-        "📡 GV 날짜별 분산 감시 | 오늘 5분 / 내일 20초 / +2~+4일 90초 / "
-        "+5~+14일 30초 / +15~+30일 60초 / +31~+42일 5분"
+"📡 GV 집중 감시 | +4~+21일 18개 날짜 | 각 날짜 약 8초마다 재확인"
     )
-    print("🎯 GV 0023 직접필터 | 영화목록+용산 날짜목록 | 30초 주기")
-    print("⚡ GV 00/30 추가점검 | +4~+21일 | 2 workers")
+    print("🎯 GV 0023 직접필터 | 영화목록+용산 날짜목록 | 8초 주기")
+    print("🛡️ 00/30 추가 burst 스캔 비활성화 | 8초 상시감시로 대체")
     print("🎯 GV 판정: videoAddexpCd=0023 + 관객과의대화/GV 텍스트 fallback")
 
     while time.monotonic() - started_at < RUN_SECONDS and 6 <= now_kst().hour <= 23:
@@ -981,7 +973,7 @@ def run_monitor(session, seen, show_state, started_at):
             continue
 
         wall = now_kst()
-        if wall.minute in FAST_SCAN_MINUTES:
+        if FAST_SCAN_ENABLED and wall.minute in FAST_SCAN_MINUTES:
             slot = wall.strftime("%Y%m%d%H%M")
             if slot != last_fast_slot:
                 last_fast_slot = slot
@@ -1066,7 +1058,7 @@ def main():
     print("BRANCH:", SITE_NAME)
     print("SITE NO:", SITE_NO)
     print("TARGET: GV ONLY / 0023 직접필터 + videoAddexpCd=0023 + GV text fallback")
-    print("DATE RANGE: TODAY ~ +42 DAYS (43 DAYS TOTAL)")
+    print("DATE RANGE: +4 ~ +21 DAYS (18 DAYS TOTAL)")
     print("SOLD OUT / REOPEN: 사용자 알림 없음 / 내부 상태만 저장")
     print("ALERT: 날짜 + 영화 + GV 묶음 / 영화 제목에만 예매 링크")
     print("RUN SECONDS:", RUN_SECONDS)
