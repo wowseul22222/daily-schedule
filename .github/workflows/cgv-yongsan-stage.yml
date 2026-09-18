@@ -43,12 +43,12 @@ jobs:
           required = [
               'SITE_NO = "0013"',
               'CGV_STAGE_CODE = "0025"',
-              'DIRECT_FILTER_CODE = CGV_STAGE_CODE',
-              'searchAtktTopPostrList',
-              'searchSiteScnscYmdListByMov',
               'TARGET_WEEKDAYS = {2, 5, 6}',
               'TARGET_DAY_LABEL = "수/토/일/공휴일"',
               'FULL_SCAN_INTERVAL = 120.0',
+              'FAST_SCAN_START_OFFSET = 7',
+              'def make_dates(start_offset=7, end_offset=42):',
+              'KOREA_PUBLIC_HOLIDAYS = {',
               'RUN_SECONDS',
           ]
           missing = [x for x in required if x not in text]
