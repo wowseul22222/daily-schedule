@@ -1,6 +1,6 @@
 {
   "schema": "CGV_YONGSAN_GV_ONLY_V2_20260912",
-  "updated_at_kst": "2026-09-17T14:08:34.151075+09:00",
+  "updated_at_kst": "2026-09-18T12:01:51.553588+09:00",
   "shows": {
     "0013|20260912|30001399|20056439|015|5|1740|GV": {
       "status": "OPEN",
@@ -51,8 +51,8 @@
       "screen": "12관[Business] (Laser)",
       "time": "1930",
       "end_time": "2126",
-      "status_source": "frSeatCnt=2",
-      "updated_at_kst": "2026-09-17T14:08:17.509306+09:00"
+      "status_source": "frSeatCnt=12",
+      "updated_at_kst": "2026-09-18T11:59:17.519498+09:00"
     },
     "0013|20260923|30001314|20056916|001|5|1920|GV": {
       "status": "SOLD_OUT",
@@ -65,10 +65,10 @@
       "time": "1920",
       "end_time": "2141",
       "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-17T14:08:32.102951+09:00"
+      "updated_at_kst": "2026-09-18T12:01:43.061189+09:00"
     },
     "0013|20260924|30001465|20056789|009|3|1400|GV": {
-      "status": "SOLD_OUT",
+      "status": "OPEN",
       "date": "20260924",
       "type": "GV",
       "movie": "이방인",
@@ -77,8 +77,8 @@
       "screen": "11관 (Laser)",
       "time": "1400",
       "end_time": "1612",
-      "status_source": "frSeatCnt=0",
-      "updated_at_kst": "2026-09-17T14:08:32.443795+09:00"
+      "status_source": "frSeatCnt=1",
+      "updated_at_kst": "2026-09-18T12:01:43.469174+09:00"
     },
     "0013|20260922|30001400|20056596|007|5|1930|GV": {
       "status": "OPEN",
@@ -90,8 +90,8 @@
       "screen": "7관 (Laser)",
       "time": "1930",
       "end_time": "2125",
-      "status_source": "frSeatCnt=43",
-      "updated_at_kst": "2026-09-17T14:08:31.736738+09:00"
+      "status_source": "frSeatCnt=38",
+      "updated_at_kst": "2026-09-18T12:01:40.167711+09:00"
     },
     "0013|20260918|30001377|GV_DIRECT_0023": {
       "status": "DETECTED",
@@ -144,6 +144,58 @@
       "end_time": "",
       "status_source": "VIDEO_ADDEXP_CD=0023 direct filter",
       "updated_at_kst": "2026-09-16T08:52:19.816934+09:00"
+    },
+    "0013|20260922|30001377|GV_DIRECT_0023": {
+      "status": "DETECTED",
+      "date": "20260922",
+      "type": "GV",
+      "movie": "더 드라마",
+      "mov_no": "30001377",
+      "prod_no": "",
+      "screen": "",
+      "time": "",
+      "end_time": "",
+      "status_source": "VIDEO_ADDEXP_CD=0023 direct filter",
+      "updated_at_kst": "2026-09-18T08:23:41.585754+09:00"
+    },
+    "0013|20260922|30001377|20056862|006|5|1900|GV": {
+      "status": "OPEN",
+      "date": "20260922",
+      "type": "GV",
+      "movie": "더 드라마",
+      "mov_no": "30001377",
+      "prod_no": "20056862",
+      "screen": "6관 (Laser)",
+      "time": "1900",
+      "end_time": "2056",
+      "status_source": "frSeatCnt=160",
+      "updated_at_kst": "2026-09-18T12:01:40.167689+09:00"
+    },
+    "0013|20260923|30001573|20056934|002|3|1400|GV": {
+      "status": "OPEN",
+      "date": "20260923",
+      "type": "GV",
+      "movie": "상상의 개와 거짓말쟁이 고양이",
+      "mov_no": "30001573",
+      "prod_no": "20056934",
+      "screen": "2관 (Laser)",
+      "time": "1400",
+      "end_time": "1615",
+      "status_source": "frSeatCnt=41",
+      "updated_at_kst": "2026-09-18T12:01:43.061209+09:00"
+    },
+    "0013|20260923|30001573|GV_DIRECT_0023": {
+      "status": "DETECTED",
+      "date": "20260923",
+      "type": "GV",
+      "movie": "상상의 개와 거짓말쟁이 고양이",
+      "mov_no": "30001573",
+      "prod_no": "",
+      "screen": "",
+      "time": "",
+      "end_time": "",
+      "status_source": "VIDEO_ADDEXP_CD=0023 direct filter",
+      "updated_at_kst": "2026-09-18T11:40:45.879840+09:00"
     }
   }
 }
