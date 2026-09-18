@@ -36,9 +36,9 @@ MIN_REQUEST_GAP = 0.35
 RATE_LIMIT_COOLDOWN = 60.0
 SUMMARY_SECONDS = 600.0
 
-# 롯데/메가박스와 같은 00/30 추가점검: +4~+21일 중 수/토/일/공휴일만.
+# 00/30 추가점검: +7~+21일 중 수/토/일/공휴일만.
 FAST_SCAN_MINUTES = {0, 30}
-FAST_SCAN_START_OFFSET = 4
+FAST_SCAN_START_OFFSET = 7
 FAST_SCAN_END_OFFSET = 21
 FAST_SCAN_WORKERS = 2
 
@@ -152,12 +152,12 @@ def is_stage_target_date(date_text):
     return dt.weekday() in TARGET_WEEKDAYS or hyphen in KOREA_PUBLIC_HOLIDAYS
 
 
-def make_dates(start_offset=0, end_offset=42):
+def make_dates(start_offset=7, end_offset=42):
     today = now_kst().date()
     result = []
     for offset in range(start_offset, end_offset + 1):
         date = (today + timedelta(days=offset)).strftime("%Y%m%d")
-        # 기본은 수/토/일/공휴일. 다만 0025 직접필터에서 잡힌 날짜는 요일과 무관하게 즉시 상세감시에 추가한다.
+        # +7일 이후 수/토/일/공휴일만. 0025 직접필터 신호도 동일한 날짜 조건을 통과한 경우만 들어온다.
         if is_stage_target_date(date) or date in DIRECT_SIGNAL_DATES:
             result.append(date)
     return result
@@ -463,9 +463,11 @@ def make_direct_event(date, mov_no, movie):
 def scan_direct_filter(session):
     """0025 전용 영화목록 -> 용산 날짜목록. 상세 회차가 숨겨져 있어도 영화/날짜 신호를 먼저 잡는다."""
     today = now_kst().date()
+    # 당일~+6일은 제외. +7~+42일 중 수/토/일/공휴일만 직접필터 대상으로 인정한다.
     valid_dates = {
         (today + timedelta(days=i)).strftime("%Y%m%d")
-        for i in range(DAYS)
+        for i in range(7, DAYS)
+        if is_stage_target_date((today + timedelta(days=i)).strftime("%Y%m%d"))
     }
     response = session.get(
         DIRECT_MOVIE_LIST_URL,
@@ -961,7 +963,7 @@ def run_fast_scan(seen, show_state, cache):
     elapsed = time.monotonic() - started
     icon = "⚡" if errors == 0 else "⚠️"
     print(
-        f"{icon} {now_kst():%H:%M} 00/30 추가점검 완료 | +4~+21일 중 {TARGET_DAY_LABEL} | "
+        f"{icon} {now_kst():%H:%M} 00/30 추가점검 완료 | +7~+21일 중 {TARGET_DAY_LABEL} | "
         f"성공 {success}/{len(dates)} | {elapsed:.2f}초 | Discord 알림 {alerts} | 오류 {errors}"
     )
     return {"requests": len(dates), "success": success, "errors": errors, "alerts": alerts}
@@ -976,7 +978,7 @@ def run_monitor(session, seen, show_state, started_at):
 
     # 시작하자마자 0025 직접필터부터 확인한다.
     # 일반 회차 API에 아직 상세 row가 없어도 영화/날짜 신호를 먼저 잡고,
-    # 그 날짜는 요일과 무관하게 이후 상세감시에 자동 편입한다.
+    # 단, +7~+42일의 수/토/일/공휴일 조건을 만족한 날짜만 이후 상세감시에 편입한다.
     direct = run_direct_filter_scan(session, seen, show_state)
     window_alerts += direct["alerts"]
     window_errors += direct["errors"]
@@ -997,11 +999,11 @@ def run_monitor(session, seen, show_state, started_at):
     )
 
     print(
-        f"📡 무대인사 일반감시 | 기본 {TARGET_DAY_LABEL} + 0025 직접필터 감지날짜 | "
+        f"📡 무대인사 일반감시 | +7~+42일 {TARGET_DAY_LABEL} | "
         "전체 120초 주기"
     )
     print("🎯 무대인사 0025 직접필터 | 영화목록+용산 날짜목록 | 30초 주기")
-    print(f"⚡ 00/30 추가점검 | +4~+21일 중 {TARGET_DAY_LABEL}+직접필터 날짜 | 2 workers")
+    print(f"⚡ 00/30 추가점검 | +7~+21일 중 {TARGET_DAY_LABEL} | 2 workers")
     print("🎯 무대인사 판정: videoAddexpCd=0025 + 무대인사 텍스트 fallback")
 
     while time.monotonic() - started_at < RUN_SECONDS and 6 <= now_kst().hour <= 23:
@@ -1086,9 +1088,9 @@ def main():
     print("BRANCH:", SITE_NAME)
     print("SITE NO:", SITE_NO)
     print("TARGET: 무대인사 ONLY / 0025 직접필터 + videoAddexpCd=0025 + 무대인사 text fallback")
-    print(f"TARGET DAYS: {TARGET_DAY_LABEL} + 0025 직접필터 감지날짜")
-    print("DATE RANGE: TODAY ~ +42 DAYS")
-    print("SCAN: 대상 날짜 120초 + 0025 직접필터 30초 + 00/30 +4~+21일 2 workers")
+    print(f"TARGET DAYS: +7~+42일 / {TARGET_DAY_LABEL}")
+    print("DATE RANGE: +7 ~ +42 DAYS")
+    print("SCAN: +7~+42 대상 날짜 120초 + 0025 직접필터 30초 + 00/30 +7~+21일 2 workers")
     print("SOLD OUT / REOPEN: 사용자 알림 없음 / 내부 상태만 저장")
     print("ALERT: 날짜 + 영화 + 무대인사 묶음 / 영화 제목에만 예매 링크")
     print("RUN SECONDS:", RUN_SECONDS)
