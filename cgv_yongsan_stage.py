@@ -9,7 +9,8 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
-import requests
+import requests as std_requests
+from curl_cffi import requests as cffi_requests
 
 try:
     sys.stdout.reconfigure(line_buffering=True, write_through=True)
@@ -96,11 +97,7 @@ BASE_HEADERS = {
     "Accept-Language": "ko-KR,ko;q=0.9",
     "Cache-Control": "no-cache",
     "Pragma": "no-cache",
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/152.0.0.0 Safari/537.36"
-    ),
+    "Origin": "https://cgv.co.kr",
 }
 
 BLOCK_STATUSES = {403, 429, 500, 502, 503, 504}
@@ -205,7 +202,7 @@ def send_discord(message):
         },
     }
     try:
-        response = requests.post(DISCORD_WEBHOOK, json=payload, timeout=15)
+        response = std_requests.post(DISCORD_WEBHOOK, json=payload, timeout=15)
         response.raise_for_status()
         print("DISCORD SENT:", response.status_code)
         return True
@@ -893,6 +890,8 @@ def run_cycle(session, seen, show_state, cache, dates, label):
                 break
             continue
 
+        if success == 0:
+            print(f"✅ CGV STAGE API 정상응답 확인 | DATE={date} | 무대인사 {count_stage(events)}")
         success += 1
         cache[date] = events
         alerts += process_new_events(events, seen, show_state)
@@ -931,7 +930,7 @@ def run_fast_scan(seen, show_state, cache):
             if wait > 0:
                 time.sleep(wait)
             next_start[0] = time.monotonic() + MIN_REQUEST_GAP
-        session = requests.Session()
+        session = cffi_requests.Session(impersonate="chrome")
         try:
             return date, *check_one_date(session, date)
         finally:
@@ -953,6 +952,8 @@ def run_fast_scan(seen, show_state, cache):
             errors += 1
             print("❌ CGV STAGE 00/30 ERROR |", error)
             continue
+        if success == 0:
+            print(f"✅ CGV STAGE API 정상응답 확인 | DATE={date} | 무대인사 {count_stage(events)}")
         success += 1
         cache[date] = events
         alerts += process_new_events(events, seen, show_state)
@@ -1103,7 +1104,8 @@ def main():
         return
 
     print("CGV CUST NO: LOADED (VALUE NOT PRINTED)")
-    session = requests.Session()
+    print("CGV HTTP CLIENT: curl_cffi / impersonate=chrome")
+    session = cffi_requests.Session(impersonate="chrome")
     try:
         seen = load_seen()
         show_state, state_ready = load_booking_state()
