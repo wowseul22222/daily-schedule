@@ -8,7 +8,7 @@ permissions:
 
 concurrency:
   group: cgv-yongsan-stage-monitor
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   monitor:
@@ -29,7 +29,7 @@ jobs:
       - name: Install dependency
         run: |
           python -m pip install --upgrade pip
-          python -m pip install requests
+          python -m pip install requests "curl_cffi==0.16.3"
 
       - name: Verify stage source
         shell: bash
@@ -50,6 +50,8 @@ jobs:
               'def make_dates(start_offset=7, end_offset=42):',
               'KOREA_PUBLIC_HOLIDAYS = {',
               'RUN_SECONDS',
+              'from curl_cffi import requests as cffi_requests',
+              'impersonate=\"chrome\"',
           ]
           missing = [x for x in required if x not in text]
           if missing:
