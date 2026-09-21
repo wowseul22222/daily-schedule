@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
-import requests
-from playwright.sync_api import sync_playwright
+import requests as std_requests
+from curl_cffi import requests as cffi_requests
 
 try:
     sys.stdout.reconfigure(line_buffering=True, write_through=True)
@@ -78,155 +78,6 @@ HEADERS = {
 }
 
 BLOCK_STATUSES = {403, 429, 500, 502, 503, 504}
-
-
-class BrowserResponse:
-    def __init__(self, status_code, text, url, content_type=""):
-        self.status_code = int(status_code or 0)
-        self.text = text or ""
-        self.url = url or ""
-        self.headers = {"content-type": content_type or ""}
-
-    def json(self):
-        return json.loads(self.text)
-
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise requests.HTTPError(
-                f"{self.status_code} Client Error: Browser fetch for url: {self.url}"
-            )
-
-
-class BrowserSession:
-    """CGV 페이지를 실제 Chromium으로 연 뒤, 그 페이지 컨텍스트 안에서 GET 요청한다."""
-
-    def __init__(self, label="CGV"):
-        self.label = label
-        self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.launch(
-            headless=True,
-            args=["--disable-dev-shm-usage"],
-        )
-        self._context = self._browser.new_context(
-            locale="ko-KR",
-            timezone_id="Asia/Seoul",
-            viewport={"width": 1365, "height": 768},
-        )
-        self._page = self._context.new_page()
-        self._page.set_default_timeout(20_000)
-        self._blocked_until = 0.0
-        self.booking_page_status = 0
-        self._warmup()
-
-    def _warmup(self):
-        try:
-            response = self._page.goto(
-                BOOKING_PAGE,
-                wait_until="domcontentloaded",
-                timeout=30_000,
-            )
-            self.booking_page_status = response.status if response else 0
-            self._page.wait_for_timeout(1500)
-            print(
-                f"🌐 {self.label} PLAYWRIGHT PAGE STATUS: "
-                f"{self.booking_page_status} | {self._page.url}"
-            )
-        except Exception as error:
-            self.booking_page_status = 0
-            print(f"⚠️ {self.label} PLAYWRIGHT PAGE WARNING: {repr(error)}")
-
-    @staticmethod
-    def _build_url(url, params):
-        if not params:
-            return url
-        query = urlencode(params, doseq=True)
-        return url + ("&" if "?" in url else "?") + query
-
-    @staticmethod
-    def _page_target(url):
-        prefix = "https://cgv.co.kr"
-        if url.startswith(prefix):
-            target = url[len(prefix):]
-            return target or "/"
-        return url
-
-    def _fetch_once(self, final_url, timeout):
-        target = self._page_target(final_url)
-        timeout_ms = max(1000, int(float(timeout or 20) * 1000))
-        result = self._page.evaluate(
-            """
-            async ({target, timeoutMs}) => {
-              const controller = new AbortController();
-              const timer = setTimeout(() => controller.abort(), timeoutMs);
-              try {
-                const response = await fetch(target, {
-                  method: 'GET',
-                  credentials: 'include',
-                  cache: 'no-store',
-                  headers: {
-                    'Accept': 'application/json, text/plain, */*'
-                  },
-                  signal: controller.signal
-                });
-                const text = await response.text();
-                return {
-                  status: response.status,
-                  text,
-                  url: response.url,
-                  contentType: response.headers.get('content-type') || ''
-                };
-              } catch (error) {
-                return {error: String(error)};
-              } finally {
-                clearTimeout(timer);
-              }
-            }
-            """,
-            {"target": target, "timeoutMs": timeout_ms},
-        )
-        if not isinstance(result, dict):
-            raise requests.RequestException(f"unexpected browser result: {result!r}")
-        if result.get("error"):
-            raise requests.RequestException(result["error"])
-        return BrowserResponse(
-            result.get("status", 0),
-            result.get("text", ""),
-            result.get("url", final_url),
-            result.get("contentType", ""),
-        )
-
-    def get(self, url, params=None, headers=None, timeout=20):
-        # headers 인자는 기존 함수 인터페이스 호환용이다. 브라우저가 실제 Referer/쿠키를 관리한다.
-        remaining = self._blocked_until - time.monotonic()
-        if remaining > 0:
-            print(f"🛡️ CGV 403 보호 대기 {remaining:.0f}초")
-            time.sleep(remaining)
-            self._warmup()
-
-        final_url = self._build_url(url, params or {})
-        response = self._fetch_once(final_url, timeout)
-
-        # 일시적인 세션/페이지 상태 문제면 정상 페이지를 한 번 다시 연 뒤 단 1회 재시도한다.
-        if response.status_code == 403:
-            print("⚠️ 브라우저 컨텍스트 403 → 예매페이지 1회 재가열 후 재시도")
-            self._warmup()
-            time.sleep(2.0)
-            response = self._fetch_once(final_url, timeout)
-            if response.status_code == 403:
-                self._blocked_until = time.monotonic() + 60.0
-
-        return response
-
-    def close(self):
-        for obj in (self._page, self._context, self._browser):
-            try:
-                obj.close()
-            except Exception:
-                pass
-        try:
-            self._pw.stop()
-        except Exception:
-            pass
 
 
 def now_kst():
@@ -310,7 +161,7 @@ def send_discord(message):
         },
     }
     try:
-        response = requests.post(
+        response = std_requests.post(
             DISCORD_WEBHOOK,
             json=payload,
             timeout=15,
@@ -1034,36 +885,31 @@ def fast_scan_dates():
 
 def run_fast_scan(seen, show_state, cache):
     dates = fast_scan_dates()
-    if not dates:
-        return {"requests": 0, "success": 0, "errors": 0, "alerts": 0}
+    lock = threading.Lock()
+    next_start = [time.monotonic()]
 
-    # Playwright sync 객체는 스레드 간 공유하지 않는다. 2 worker마다 Chromium 세션 1개씩 유지한다.
-    chunks = [dates[i::FAST_SCAN_WORKERS] for i in range(FAST_SCAN_WORKERS)]
-
-    def worker(worker_index, worker_dates):
-        results = []
-        if not worker_dates:
-            return results
-        session = BrowserSession(label=f"GV FAST-{worker_index + 1}")
+    def worker(date):
+        with lock:
+            wait = next_start[0] - time.monotonic()
+            if wait > 0:
+                time.sleep(wait)
+            next_start[0] = time.monotonic() + MIN_REQUEST_GAP
+        session = cffi_requests.Session(impersonate="chrome")
         try:
-            for date in worker_dates:
-                results.append((date, *check_one_date(session, date)))
-                time.sleep(MIN_REQUEST_GAP)
+            return date, *check_one_date(session, date)
         finally:
-            session.close()
-        return results
+            try:
+                session.close()
+            except Exception:
+                pass
 
     started = time.monotonic()
     results = []
     with ThreadPoolExecutor(max_workers=FAST_SCAN_WORKERS) as executor:
-        futures = [
-            executor.submit(worker, index, chunk)
-            for index, chunk in enumerate(chunks)
-            if chunk
-        ]
+        futures = [executor.submit(worker, date) for date in dates]
         for future in as_completed(futures):
             try:
-                results.extend(future.result())
+                results.append(future.result())
             except Exception as error:
                 results.append(("", None, f"WORKER ERROR | {repr(error)}"))
 
@@ -1083,10 +929,12 @@ def run_fast_scan(seen, show_state, cache):
     elapsed = time.monotonic() - started
     icon = "⚡" if errors == 0 else "⚠️"
     print(
-        f"{icon} {now_kst():%H:%M} 00/30 동시스캔 완료 | +4~+21일 | "
-        f"성공 {success}/{len(dates)} | {elapsed:.2f}초 | Discord 알림 {alerts} | 오류 {errors}"
+        f"{icon} {now_kst():%H:%M} 00/30 빠른점검 완료 | "
+        f"+4~+21일 | 성공 {success}/{len(dates)} | {elapsed:.2f}초 | "
+        f"Discord 알림 {alerts} | 오류 {errors}"
     )
-    return {"requests": len(dates), "success": success, "errors": errors, "alerts": alerts}
+    return success, errors, alerts
+
 
 def run_monitor(session, seen, show_state, started_at):
     cache = {}
@@ -1218,9 +1066,14 @@ def main():
     print("KST NOW:", now_kst().strftime("%Y-%m-%d %H:%M:%S"))
     print("=" * 72)
 
-    session = BrowserSession(label="GV MAIN")
+    print("CGV HTTP CLIENT: curl_cffi / impersonate=chrome")
+    session = cffi_requests.Session(impersonate="chrome")
     try:
-        print("BOOKING PAGE STATUS:", session.booking_page_status)
+        try:
+            response = session.get(BOOKING_PAGE, headers=HEADERS, timeout=20)
+            print("BOOKING PAGE STATUS:", response.status_code)
+        except Exception as error:
+            print("⚠️ BOOKING PAGE CHECK WARNING:", repr(error))
 
         seen = load_seen()
         show_state, state_ready = load_booking_state()
