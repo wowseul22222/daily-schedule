@@ -29,8 +29,7 @@ jobs:
       - name: Install dependency
         run: |
           python -m pip install --upgrade pip
-          python -m pip install requests playwright
-          python -m playwright install --with-deps chromium
+          python -m pip install requests "curl_cffi==0.16.3"
 
       - name: Verify GV source
         shell: bash
@@ -49,8 +48,8 @@ jobs:
               'searchSiteScnscYmdListByMov',
               'CGV YONGSAN GV-ONLY MONITOR',
               'RUN_SECONDS',
-              'from playwright.sync_api import sync_playwright',
-              'class BrowserSession:',
+              'from curl_cffi import requests as cffi_requests',
+              'impersonate=\"chrome\"',
           ]
           missing = [x for x in required if x not in text]
           if missing:
