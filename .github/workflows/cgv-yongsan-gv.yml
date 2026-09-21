@@ -8,7 +8,7 @@ permissions:
 
 concurrency:
   group: cgv-yongsan-gv-monitor
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   monitor:
