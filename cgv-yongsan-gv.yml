@@ -1,0 +1,108 @@
+name: CGV Yongsan GV Monitor
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cgv-yongsan-gv-monitor
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependency
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install requests playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Verify GV source
+        shell: bash
+        run: |
+          python -m py_compile cinema_alert.py
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          text = Path("cinema_alert.py").read_text(encoding="utf-8")
+          required = [
+              'SITE_NO = "0013"',
+              'GV_CODE = "0023"',
+              'DIRECT_FILTER_CODE = GV_CODE',
+              'searchAtktTopPostrList',
+              'searchSiteScnscYmdListByMov',
+              'CGV YONGSAN GV-ONLY MONITOR',
+              'RUN_SECONDS',
+              'from playwright.sync_api import sync_playwright',
+              'class BrowserSession:',
+          ]
+          missing = [x for x in required if x not in text]
+          if missing:
+              print("❌ GV 소스 검증 실패:", ", ".join(missing))
+              sys.exit(1)
+          print("✅ CGV 용산 GV 소스 검증 통과")
+          PY
+
+      - name: Check secrets
+        env:
+          CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
+          DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
+        shell: bash
+        run: |
+          test -n "$CY_WEBHOOK" || { echo "❌ CY_WEBHOOK secret missing"; exit 1; }
+          test -n "$DISCORD_MENTION_ID" || { echo "❌ DISCORD_MENTION_ID secret missing"; exit 1; }
+          echo "✅ Discord secrets loaded"
+
+      - name: Set manual monitoring duration
+        id: duration
+        shell: bash
+        run: |
+          # 수동 실행 1회당 최대 5시간 30분 감시.
+          # Python 자체 운영시간 가드(06:00~24:00)가 자정에는 먼저 종료시킨다.
+          echo "seconds=19800" >> "$GITHUB_OUTPUT"
+
+      - name: Run GV monitor
+        env:
+          CY_WEBHOOK: ${{ secrets.CY_WEBHOOK }}
+          DISCORD_MENTION_ID: ${{ secrets.DISCORD_MENTION_ID }}
+          RUN_SECONDS: ${{ steps.duration.outputs.seconds }}
+        run: |
+          echo "✅ GV RUN_SECONDS=${RUN_SECONDS}"
+          python -u cinema_alert.py
+
+      - name: Save GV state
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            seen_cgv_yongsan_gv_v2.json \
+            baseline_cgv_yongsan_gv_v2.done \
+            cgv_yongsan_gv_booking_state_v2.json \
+            2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No GV state changes"
+          else
+            git commit -m "Update CGV Yongsan GV state"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
