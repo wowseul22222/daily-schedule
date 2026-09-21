@@ -1,6 +1,6 @@
 {
   "schema": "CGV_YONGSAN_GV_ONLY_V2_20260912",
-  "updated_at_kst": "2026-09-18T17:32:19.999459+09:00",
+  "updated_at_kst": "2026-09-22T08:50:46.949087+09:00",
   "shows": {
     "0013|20260912|30001399|20056439|015|5|1740|GV": {
       "status": "OPEN",
@@ -196,6 +196,32 @@
       "end_time": "",
       "status_source": "VIDEO_ADDEXP_CD=0023 direct filter",
       "updated_at_kst": "2026-09-18T11:40:45.879840+09:00"
+    },
+    "0013|20261001|30001414|20057026|014|5|1930|GV": {
+      "status": "OPEN",
+      "date": "20261001",
+      "type": "GV",
+      "movie": "퓨리어스",
+      "mov_no": "30001414",
+      "prod_no": "20057026",
+      "screen": "16관 (Laser)",
+      "time": "1930",
+      "end_time": "2133",
+      "status_source": "frSeatCnt=123",
+      "updated_at_kst": "2026-09-22T08:50:45.264420+09:00"
+    },
+    "0013|20261006|30001414|20056946|014|5|1930|GV": {
+      "status": "OPEN",
+      "date": "20261006",
+      "type": "GV",
+      "movie": "퓨리어스",
+      "mov_no": "30001414",
+      "prod_no": "20056946",
+      "screen": "16관 (Laser)",
+      "time": "1930",
+      "end_time": "2133",
+      "status_source": "frSeatCnt=132",
+      "updated_at_kst": "2026-09-22T08:50:39.347228+09:00"
     }
   }
 }
