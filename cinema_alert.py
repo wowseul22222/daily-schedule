@@ -68,11 +68,12 @@ HEADERS = {
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8",
     "Cache-Control": "no-cache",
     "Pragma": "no-cache",
+    "Origin": "https://cgv.co.kr",
     "Referer": BOOKING_PAGE,
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/152.0.0.0 Safari/537.36"
+        "Chrome/140.0.0.0 Safari/537.36"
     ),
 }
 
