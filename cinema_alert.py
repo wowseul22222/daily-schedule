@@ -70,11 +70,7 @@ HEADERS = {
     "Cache-Control": "no-cache",
     "Pragma": "no-cache",
     "Referer": BOOKING_PAGE,
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/152.0.0.0 Safari/537.36"
-    ),
+    "Origin": "https://cgv.co.kr",
 }
 
 BLOCK_STATUSES = {403, 429, 500, 502, 503, 504}
@@ -1032,6 +1028,8 @@ def run_monitor(session, seen, show_state, started_at):
                 next_due[due_date] = time.monotonic() + effective_interval(due_date, show_state)
             continue
 
+        if window_success == 0:
+            print(f"✅ CGV API 정상응답 확인 | DATE={due_date} | GV {count_gv(events)}")
         window_success += 1
         cache[due_date] = events
         alerts = process_new_events(events, seen, show_state)
@@ -1069,11 +1067,7 @@ def main():
     print("CGV HTTP CLIENT: curl_cffi / impersonate=chrome")
     session = cffi_requests.Session(impersonate="chrome")
     try:
-        try:
-            response = session.get(BOOKING_PAGE, headers=HEADERS, timeout=20)
-            print("BOOKING PAGE STATUS:", response.status_code)
-        except Exception as error:
-            print("⚠️ BOOKING PAGE CHECK WARNING:", repr(error))
+        print("CGV API MODE: direct API / no HTML warm-up")
 
         seen = load_seen()
         show_state, state_ready = load_booking_state()
