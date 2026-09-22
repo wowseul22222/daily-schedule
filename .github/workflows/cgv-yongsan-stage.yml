@@ -8,7 +8,7 @@ permissions:
 
 concurrency:
   group: cgv-yongsan-stage-monitor
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   monitor:
@@ -45,7 +45,7 @@ jobs:
               'CGV_STAGE_CODE = "0025"',
               'TARGET_WEEKDAYS = {2, 5, 6}',
               'TARGET_DAY_LABEL = "수/토/일/공휴일"',
-              'FULL_SCAN_INTERVAL = 120.0',
+              'FULL_SCAN_INTERVAL = 30.0',
               'FAST_SCAN_START_OFFSET = 7',
               'def make_dates(start_offset=7, end_offset=42):',
               'KOREA_PUBLIC_HOLIDAYS = {',
