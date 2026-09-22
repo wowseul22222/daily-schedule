@@ -29,17 +29,17 @@ GV_CODE = "0023"
 DAYS = 43  # 기존 workflow 검증 호환용. 실제 감시 범위는 +4~+21일만 사용.
 SCAN_START_OFFSET = 4
 SCAN_END_OFFSET = 21
-SCAN_CYCLE_SECONDS = 8.0
-PREPARING_INTERVAL = 8.0
-MIN_REQUEST_GAP = 0.35
-RATE_LIMIT_COOLDOWN = 60.0
+SCAN_CYCLE_SECONDS = 18.0
+PREPARING_INTERVAL = 12.0
+MIN_REQUEST_GAP = 0.90
+RATE_LIMIT_COOLDOWN = 25.0
 SUMMARY_SECONDS = 600.0
 
 FAST_SCAN_MINUTES = {0, 30}
 FAST_SCAN_START_OFFSET = 4
 FAST_SCAN_END_OFFSET = 21
 FAST_SCAN_WORKERS = 2
-FAST_SCAN_ENABLED = False  # 8초 상시감시와 중복되는 00/30 burst 비활성화
+FAST_SCAN_ENABLED = False  # 동시 burst는 429 위험 때문에 사용하지 않음
 
 # GitHub Actions workflow가 실행 구간을 RUN_SECONDS로 주입한다.
 RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "86400"))
@@ -51,7 +51,7 @@ API_URL = "https://cgv.co.kr/api/v1/booking/searchMovScnInfo"
 DIRECT_MOVIE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchAtktTopPostrList"
 DIRECT_DATE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchSiteScnscYmdListByMov"
 DIRECT_FILTER_CODE = GV_CODE
-DIRECT_SCAN_INTERVAL = 8.0
+DIRECT_SCAN_INTERVAL = 30.0
 DIRECT_SCAN_TIMEOUT = 12
 
 # 이번 GV ONLY 개편용 새 상태 파일. 이전 통합 감시 상태와 섞지 않는다.
@@ -74,6 +74,26 @@ HEADERS = {
 }
 
 BLOCK_STATUSES = {403, 429, 500, 502, 503, 504}
+MONITOR_BUILD = "GV_FULL_COVERAGE_20260922_V1"
+ERROR_RETRY_SECONDS = 12.0
+HTTP_403_RETRY_DELAY = 1.5
+
+
+def _fresh_session():
+    return cffi_requests.Session(impersonate="chrome")
+
+
+def get_with_403_retry(session, url, **kwargs):
+    """403만 새 세션으로 1회 재시도. 429는 즉시 재요청하지 않고 스케줄러가 쉬었다가 다시 본다."""
+    response = session.get(url, **kwargs)
+    if response.status_code != 403:
+        return response, False
+    time.sleep(HTTP_403_RETRY_DELAY)
+    retry_session = _fresh_session()
+    try:
+        return retry_session.get(url, **kwargs), True
+    finally:
+        retry_session.close()
 
 
 def now_kst():
@@ -163,7 +183,6 @@ def send_discord(message):
             timeout=15,
         )
         response.raise_for_status()
-        print("DISCORD SENT:", response.status_code)
         return True
     except Exception as error:
         print("❌ DISCORD ERROR:", repr(error))
@@ -421,9 +440,10 @@ def make_direct_event(date, mov_no, movie):
 def scan_direct_filter(session):
     """0023 전용 영화목록 -> 용산 날짜목록. 상세 회차가 숨겨져 있어도 영화/날짜 신호를 먼저 잡는다."""
     today = now_kst().date()
+    # 직접필터도 상세 회차 감시와 동일하게 +4~+21일만 인정한다.
     valid_dates = {
         (today + timedelta(days=i)).strftime("%Y%m%d")
-        for i in range(DAYS)
+        for i in range(SCAN_START_OFFSET, SCAN_END_OFFSET + 1)
     }
     response = session.get(
         DIRECT_MOVIE_LIST_URL,
@@ -459,7 +479,6 @@ def scan_direct_filter(session):
             dates = extract_direct_dates(dr.json()) & valid_dates
         except Exception as error:
             errors += 1
-            print(f"⚠️ GV 직접필터 날짜조회 오류 | MOV={mov_no} | {repr(error)}")
             continue
 
         for date in dates:
@@ -496,7 +515,8 @@ def make_headers(date):
 def check_one_date(session, date):
     try:
         started = time.monotonic()
-        response = session.get(
+        response, retried = get_with_403_retry(
+            session,
             API_URL,
             params={
                 "coCd": CO_CD,
@@ -661,20 +681,13 @@ def process_direct_signals(signals, seen, show_state):
 
 
 def run_direct_filter_scan(session, seen, show_state):
-    started = time.monotonic()
+    # 8초마다 실제 조회는 계속하되, 반복 로그는 10분 요약에서만 보여준다.
     try:
         signals, inner_errors = scan_direct_filter(session)
         alerts, new_count = process_direct_signals(signals, seen, show_state)
-        elapsed = time.monotonic() - started
-        print(
-            f"🎯 GV 0023 직접필터 완료 | 신호 {len(signals)} | 신규 {new_count} | "
-            f"Discord 알림 {alerts} | 오류 {inner_errors} | {elapsed:.2f}초"
-        )
-        return {"signals": len(signals), "alerts": alerts, "errors": inner_errors}
-    except Exception as error:
-        elapsed = time.monotonic() - started
-        print(f"❌ GV 0023 직접필터 오류 | {repr(error)} | {elapsed:.2f}초")
-        return {"signals": 0, "alerts": 0, "errors": 1}
+        return {"signals": len(signals), "alerts": alerts, "errors": inner_errors, "new": new_count}
+    except Exception:
+        return {"signals": 0, "alerts": 0, "errors": 1, "new": 0}
 
 def process_new_events(events, seen, show_state):
     # 새 회차가 처음부터 매진이면 사용자 알림 없이 내부 상태만 등록한다.
@@ -935,25 +948,32 @@ def run_fast_scan(seen, show_state, cache):
 def run_monitor(session, seen, show_state, started_at):
     cache = {}
     last_request = 0.0
-    last_fast_slot = None
     report_started = time.monotonic()
     window_requests = window_success = window_errors = window_alerts = 0
+    window_direct_errors = 0
     total_requests = 0
 
-    # 시작하자마자 0023 직접필터부터 확인한다. 일반 회차 API에 아직 안 보이는 GV도 여기서 잡는다.
+    target_dates = make_dates()
+    target_set = set(target_dates)
+    window_covered = set()
+
+    # 0023 직접필터는 조기 신호용. 상세 18일 감시와 별도이며 30초마다만 확인한다.
     direct = run_direct_filter_scan(session, seen, show_state)
+    latest_direct_signals = direct["signals"]
     window_alerts += direct["alerts"]
-    window_errors += direct["errors"]
+    window_direct_errors += direct["errors"]
     next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
 
+    # 18개 날짜를 한꺼번에 때리지 않고 18초에 고르게 분산한다.
+    # 한 날짜가 실패해도 완료 처리하지 않고 다시 due에 넣는다.
     next_due = build_schedule(show_state)
 
-    print(
-"📡 GV 집중 감시 | +4~+21일 18개 날짜 | 각 날짜 약 8초마다 재확인"
-    )
-    print("🎯 GV 0023 직접필터 | 영화목록+용산 날짜목록 | 8초 주기")
-    print("🛡️ 00/30 추가 burst 스캔 비활성화 | 8초 상시감시로 대체")
-    print("🎯 GV 판정: videoAddexpCd=0023 + 관객과의대화/GV 텍스트 fallback")
+    print(f"MONITOR BUILD: {MONITOR_BUILD}")
+    print("📡 GV 전체감시 | +4~+21일 18개 날짜 전부 | 18초 1회전 분산조회")
+    print("🎯 GV 0023 직접필터 | +4~+21일만 | 30초 주기")
+    print("🛡️ 429 방지 | 날짜 요청 시작간격 >= 0.90초 | 00/30 동시 burst 없음")
+    print("🔁 실패 날짜 | 버리지 않음 / 403은 새 세션 1회 / 429는 25초 후 전체 재개")
+    print("🧾 로그 | 반복 성공/오류는 10분 요약, 신규 Discord 알림은 즉시")
 
     while time.monotonic() - started_at < RUN_SECONDS and 6 <= now_kst().hour <= 23:
         mono = time.monotonic()
@@ -961,42 +981,37 @@ def run_monitor(session, seen, show_state, started_at):
         if remaining <= 0:
             break
 
-        # 일반 극장/날짜 API와 별도로 0023 필터를 계속 확인한다.
+        # 조기 신호 필터. 반복 로그는 출력하지 않는다.
         if mono >= next_direct_scan:
             direct = run_direct_filter_scan(session, seen, show_state)
+            latest_direct_signals = direct["signals"]
             window_alerts += direct["alerts"]
-            window_errors += direct["errors"]
+            window_direct_errors += direct["errors"]
             next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
             continue
 
-        wall = now_kst()
-        if FAST_SCAN_ENABLED and wall.minute in FAST_SCAN_MINUTES:
-            slot = wall.strftime("%Y%m%d%H%M")
-            if slot != last_fast_slot:
-                last_fast_slot = slot
-                success, errors, alerts = run_fast_scan(seen, show_state, cache)
-                count = len(fast_scan_dates())
-                total_requests += count
-                window_requests += count
-                window_success += success
-                window_errors += errors
-                window_alerts += alerts
-                base = time.monotonic()
-                for date in fast_scan_dates():
-                    if date in next_due:
-                        next_due[date] = base + effective_interval(date, show_state)
-                continue
-
+        # 10분마다 '전체 날짜를 실제로 한 번 이상 200으로 읽었는지'를 보여준다.
         if mono - report_started >= SUMMARY_SECONDS:
             count = count_gv(merged_cache(cache))
-            icon = "💚" if window_errors == 0 else "⚠️"
-            label = "정상 감시중" if window_errors == 0 else "감시중(API 오류 있음)"
+            coverage = len(window_covered & target_set)
+            missing = sorted(target_set - window_covered)
+            if coverage == len(target_set):
+                icon = "💚" if window_errors == 0 and window_direct_errors == 0 else "🟡"
+                label = "전체 날짜 확인됨" if icon == "💚" else "전체 날짜 확인됨(재시도 발생)"
+            else:
+                icon = "⚠️"
+                label = "일부 날짜 미확인"
+            missing_text = ",".join(missing) if missing else "없음"
             print(
-                f"{icon} {label} | 최근 10분 날짜조회 {window_requests}회 / 성공 {window_success}회 | "
-                f"누적 조회 {total_requests}회 | GV {count} | Discord 알림 {window_alerts} | 오류 {window_errors}"
+                f"{icon} {label} | 최근10분 커버리지 {coverage}/{len(target_set)} | "
+                f"날짜조회 {window_requests} / 성공 {window_success} / 실패시도 {window_errors} | "
+                f"미확인 {missing_text} | GV {count} | 0023 신호 {latest_direct_signals} | "
+                f"직접필터오류 {window_direct_errors} | Discord {window_alerts}"
             )
             report_started = mono
             window_requests = window_success = window_errors = window_alerts = 0
+            window_direct_errors = 0
+            window_covered = set()
             continue
 
         due_date = min(next_due, key=next_due.get)
@@ -1019,18 +1034,20 @@ def run_monitor(session, seen, show_state, started_at):
         events, error = check_one_date(session, due_date)
         total_requests += 1
         window_requests += 1
+
         if error or events is None:
             window_errors += 1
-            print("❌ CGV API 오류 |", error)
+            now = time.monotonic()
             if error and "HTTP 429" in error:
-                next_due = build_schedule(show_state, time.monotonic() + RATE_LIMIT_COOLDOWN)
+                # 429는 즉시 재시도하지 않는다. 모든 날짜를 잠깐 쉬게 해 추가 429를 막는다.
+                next_due = build_schedule(show_state, now + RATE_LIMIT_COOLDOWN)
             else:
-                next_due[due_date] = time.monotonic() + effective_interval(due_date, show_state)
+                # 실패 날짜는 성공으로 간주하지 않고 다시 큐에 남긴다.
+                next_due[due_date] = now + ERROR_RETRY_SECONDS
             continue
 
-        if window_success == 0:
-            print(f"✅ CGV API 정상응답 확인 | DATE={due_date} | GV {count_gv(events)}")
         window_success += 1
+        window_covered.add(due_date)
         cache[due_date] = events
         alerts = process_new_events(events, seen, show_state)
         alerts += process_state_transitions(events, seen, show_state)
@@ -1042,7 +1059,6 @@ def run_monitor(session, seen, show_state, started_at):
     save_seen(seen)
     save_booking_state(show_state)
     print(f"✅ CGV 용산 GV 감시 종료 | 누적 날짜조회 {total_requests}회")
-
 
 def main():
     current = now_kst()
@@ -1065,6 +1081,7 @@ def main():
     print("=" * 72)
 
     print("CGV HTTP CLIENT: curl_cffi / impersonate=chrome")
+    print("GV COVERAGE POLICY: 18/18 날짜를 실제 200 응답으로 확인해야 전체 확인으로 표시")
     session = cffi_requests.Session(impersonate="chrome")
     try:
         print("CGV API MODE: direct API / no HTML warm-up")
