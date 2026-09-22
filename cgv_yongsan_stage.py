@@ -31,8 +31,8 @@ DAYS = 43
 TARGET_WEEKDAYS = {2, 5, 6}  # 월=0 ... 일=6
 TARGET_DAY_LABEL = "수/토/일/공휴일"
 
-# 기존 최종 CGV 무대인사 구조를 유지: 대상 날짜 전체를 120초마다 재조회.
-FULL_SCAN_INTERVAL = 120.0
+# 대상 날짜 전체 스캔은 30초마다 새 사이클을 시작한다.
+FULL_SCAN_INTERVAL = 30.0
 MIN_REQUEST_GAP = 1.00
 HTTP_RETRY_DELAY = 1.20
 HTTP_RETRY_STATUSES = {403, 429}
@@ -816,6 +816,7 @@ def run_monitor(session, seen, show_state, started_at):
     target_count = len(target_dates)
 
     print(f"📡 무대인사 전체감시 | +7~+42일 {TARGET_DAY_LABEL} | 대상 {target_count}일 전부")
+    print(f"⏱️ 정상 주기 | 전체 {target_count}일 스캔을 {FULL_SCAN_INTERVAL:.0f}초마다 새로 시작")
     print("🔐 조회 경로 | searchMovScnInfo + CGV_CUST_NO")
     print("🚫 0025 영화별 날짜조회 | 403 반복 경로라 실행하지 않음")
     print(f"🛡️ 요청 분산 | 날짜 요청 시작간격 >= {MIN_REQUEST_GAP:.2f}초 | 병렬 burst 없음")
@@ -848,7 +849,11 @@ def run_monitor(session, seen, show_state, started_at):
 
     last_coverage = result["success"]
     last_failed_dates = list(result["failed_dates"])
-    next_regular = time.monotonic() + (FULL_SCAN_INTERVAL if result["complete"] else RATE_LIMIT_COOLDOWN)
+    next_regular = (
+        max(time.monotonic(), result["started"] + FULL_SCAN_INTERVAL)
+        if result["complete"]
+        else time.monotonic() + RATE_LIMIT_COOLDOWN
+    )
 
     while time.monotonic() - started_at < RUN_SECONDS and 6 <= now_kst().hour <= 23:
         mono = time.monotonic()
@@ -881,7 +886,11 @@ def run_monitor(session, seen, show_state, started_at):
             window_alerts += result["alerts"]
             last_coverage = result["success"]
             last_failed_dates = list(result["failed_dates"])
-            next_regular = time.monotonic() + (FULL_SCAN_INTERVAL if result["complete"] else RATE_LIMIT_COOLDOWN)
+            next_regular = (
+                max(time.monotonic(), result["started"] + FULL_SCAN_INTERVAL)
+                if result["complete"]
+                else time.monotonic() + RATE_LIMIT_COOLDOWN
+            )
             continue
 
         time.sleep(min(max(0.05, next_regular - mono), remaining, 0.5))
