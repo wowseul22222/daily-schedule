@@ -61,6 +61,7 @@ STATE_FILE = "seen_cgv_yongsan_stage_v4.json"
 BASELINE_FILE = "baseline_cgv_yongsan_stage_v4.done"
 BOOKING_STATE_FILE = "cgv_yongsan_stage_booking_state_v4.json"
 BOOKING_STATE_SCHEMA = "CGV_YONGSAN_STAGE_0025_V4_20260912"
+NOTIFIED_MARKER_PREFIX = "__NOTIFIED_STAGE__"
 
 DISCORD_WEBHOOK = os.environ.get("CY_WEBHOOK", "").strip()
 DISCORD_MENTION_ID = os.environ.get("DISCORD_MENTION_ID", "").strip()
@@ -598,6 +599,34 @@ def movie_group_key(event):
     return clean(event.get("mov_no")) or clean(event.get("movie")).casefold()
 
 
+def notification_identity(event):
+    """Discord 신규 감지 알림의 중복 기준: 용산 + 날짜 + 영화."""
+    return "|".join([
+        SITE_NO,
+        clean(event.get("date")),
+        movie_group_key(event),
+    ])
+
+
+def notification_marker_key(event):
+    return f"{NOTIFIED_MARKER_PREFIX}|{notification_identity(event)}"
+
+
+def was_notified(show_state, event):
+    marker = show_state.get(notification_marker_key(event))
+    return isinstance(marker, dict) and marker.get("_discord_detected_notified") is True
+
+
+def mark_notified(show_state, event):
+    # 기존 booking-state 파일 안에 별도 마커를 저장한다.
+    # date/movie 필드를 일부러 넣지 않아 실제 회차 상태와 혼동되지 않게 한다.
+    show_state[notification_marker_key(event)] = {
+        "_discord_detected_notified": True,
+        "identity": notification_identity(event),
+        "notified_at_kst": now_kst().isoformat(),
+    }
+
+
 def alert_time_range(event):
     start = pretty_time(event.get("time", ""))
     end = pretty_time(event.get("end_time", ""))
@@ -695,26 +724,26 @@ def has_equivalent_state(show_state, event, direct_only=False):
 def process_direct_signals(signals, seen, show_state):
     alerts = 0
     new_count = 0
-    for key, event in sorted(signals.items()):
-        if key in seen:
-            continue
+    changed = False
 
-        # 이미 실제 회차로 알고 있는 무대인사라면 직접필터 키만 조용히 동기화한다.
-        if has_equivalent_state(show_state, event):
+    for key, event in sorted(signals.items()):
+        # 핵심: seen/show_state에 이미 있어도 Discord 전송 마커가 없으면 1회 알린다.
+        # 403 등으로 과거 감지는 됐지만 실제 Discord 알림을 놓친 무대인사를 복구한다.
+        if not was_notified(show_state, event):
+            message_count = send_alert_group([event], "DETECTED")
+            if message_count > 0:
+                alerts += message_count
+                new_count += 1
+                mark_notified(show_state, event)
+                changed = True
+
+        # 감지 상태 자체는 기존 방식대로 동기화한다.
+        if key not in seen:
             seen.add(key)
             show_state[key] = state_record(event, "DETECTED")
-            continue
+            changed = True
 
-        message_count = send_alert_group([event], "DETECTED")
-        if message_count <= 0:
-            continue
-
-        alerts += message_count
-        new_count += 1
-        seen.add(key)
-        show_state[key] = state_record(event, "DETECTED")
-
-    if new_count:
+    if changed:
         save_seen(seen)
         save_booking_state(show_state)
     return alerts, new_count
@@ -730,27 +759,34 @@ def run_direct_filter_scan(session, seen, show_state):
         return {"signals": 0, "alerts": 0, "errors": 1, "new": 0}
 
 def process_new_events(events, seen, show_state):
-    new_items = []
+    notify_items = []
+    changed = False
+
     for key, event in events.items():
-        if key in seen:
-            continue
         current = event.get("status", "UNKNOWN")
+
+        # 매진으로 처음 발견된 회차는 기존 정책대로 사용자 알림 없이 내부 상태만 저장한다.
         if current == "SOLD_OUT":
-            seen.add(key)
+            if key not in seen:
+                seen.add(key)
+                changed = True
             show_state[key] = state_record(event, "SOLD_OUT")
             continue
 
-        # 0023/0025 직접필터에서 영화+날짜를 먼저 알린 경우,
-        # 실제 회차의 DETECTED 알림은 중복시키지 않고 OPEN/PREPARING 전이만 이어서 알린다.
-        if has_equivalent_state(show_state, event, direct_only=True):
-            seen.add(key)
-            show_state[key] = state_record(event, "DETECTED")
+        # 예전에 seen/state에 들어갔어도 실제 Discord DETECTED 알림을 보낸 기록이 없으면
+        # 이번 성공 조회에서 1회 복구 알림 대상으로 올린다.
+        if not was_notified(show_state, event):
+            notify_items.append((key, event))
             continue
 
-        new_items.append((key, event))
+        # 이미 Discord 감지 알림까지 완료된 이벤트는 상태만 조용히 동기화한다.
+        if key not in seen:
+            seen.add(key)
+            show_state[key] = state_record(event, current)
+            changed = True
 
     groups = {}
-    for key, event in new_items:
+    for key, event in notify_items:
         group_key = (event.get("date", ""), movie_group_key(event))
         groups.setdefault(group_key, []).append((key, event))
 
@@ -762,10 +798,17 @@ def process_new_events(events, seen, show_state):
         message_count = send_alert_group(display, "DETECTED")
         if message_count <= 0:
             continue
+
         sent += message_count
+        mark_notified(show_state, first)
+        changed = True
         for key, event in members:
             seen.add(key)
             show_state[key] = state_record(event, event.get("status", "UNKNOWN"))
+
+    if changed:
+        save_seen(seen)
+        save_booking_state(show_state)
     return sent
 
 
@@ -1107,6 +1150,7 @@ def main():
 
     print("CGV CUST NO: LOADED (VALUE NOT PRINTED)")
     print("CGV HTTP CLIENT: curl_cffi / impersonate=chrome / fresh-session retry on 403·429")
+    print("STAGE DISCORD TRACKING: seen/state와 별도 마커 / 미전송 기존 무대인사 1회 복구 알림")
     session = cffi_requests.Session(impersonate="chrome")
     try:
         seen = load_seen()
