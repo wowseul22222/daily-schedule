@@ -33,7 +33,9 @@ TARGET_DAY_LABEL = "수/토/일/공휴일"
 
 # 기존 최종 CGV 무대인사 구조를 유지: 대상 날짜 전체를 120초마다 재조회.
 FULL_SCAN_INTERVAL = 120.0
-MIN_REQUEST_GAP = 0.35
+MIN_REQUEST_GAP = 0.85
+HTTP_RETRY_DELAY = 1.20
+HTTP_RETRY_STATUSES = {403, 429}
 RATE_LIMIT_COOLDOWN = 60.0
 SUMMARY_SECONDS = 600.0
 
@@ -101,6 +103,27 @@ BASE_HEADERS = {
 }
 
 BLOCK_STATUSES = {403, 429, 500, 502, 503, 504}
+
+
+
+
+def _fresh_session():
+    return cffi_requests.Session(impersonate="chrome")
+
+
+def get_with_fresh_retry(session, url, **kwargs):
+    """일시적인 403/429는 같은 요청을 새 세션으로 딱 1회만 재시도한다."""
+    response = session.get(url, **kwargs)
+    if response.status_code not in HTTP_RETRY_STATUSES:
+        return response, False
+
+    time.sleep(HTTP_RETRY_DELAY)
+    retry_session = _fresh_session()
+    try:
+        retry_response = retry_session.get(url, **kwargs)
+        return retry_response, True
+    finally:
+        retry_session.close()
 
 
 def now_kst():
@@ -204,7 +227,6 @@ def send_discord(message):
     try:
         response = std_requests.post(DISCORD_WEBHOOK, json=payload, timeout=15)
         response.raise_for_status()
-        print("DISCORD SENT:", response.status_code)
         return True
     except Exception as error:
         print("❌ DISCORD ERROR:", repr(error))
@@ -466,7 +488,8 @@ def scan_direct_filter(session):
         for i in range(7, DAYS)
         if is_stage_target_date((today + timedelta(days=i)).strftime("%Y%m%d"))
     }
-    response = session.get(
+    response, _ = get_with_fresh_retry(
+        session,
         DIRECT_MOVIE_LIST_URL,
         params={
             "coCd": CO_CD,
@@ -485,7 +508,8 @@ def scan_direct_filter(session):
     found_dates = set()
     for mov_no, movie in movies.items():
         try:
-            dr = session.get(
+            dr, _ = get_with_fresh_retry(
+                session,
                 DIRECT_DATE_LIST_URL,
                 params={
                     "coCd": CO_CD,
@@ -533,7 +557,8 @@ def extract_rows(data):
 def check_one_date(session, date):
     try:
         started = time.monotonic()
-        response = session.get(
+        response, retried = get_with_fresh_retry(
+            session,
             API_URL,
             params={
                 "coCd": CO_CD,
@@ -696,20 +721,13 @@ def process_direct_signals(signals, seen, show_state):
 
 
 def run_direct_filter_scan(session, seen, show_state):
-    started = time.monotonic()
+    # 30초마다 실제 조회는 계속하되, 반복 로그는 10분 요약에서만 보여준다.
     try:
         signals, inner_errors = scan_direct_filter(session)
         alerts, new_count = process_direct_signals(signals, seen, show_state)
-        elapsed = time.monotonic() - started
-        print(
-            f"🎯 무대인사 0025 직접필터 완료 | 신호 {len(signals)} | 신규 {new_count} | "
-            f"대상날짜 {len(DIRECT_SIGNAL_DATES)} | Discord 알림 {alerts} | 오류 {inner_errors} | {elapsed:.2f}초"
-        )
-        return {"signals": len(signals), "alerts": alerts, "errors": inner_errors}
-    except Exception as error:
-        elapsed = time.monotonic() - started
-        print(f"❌ 무대인사 0025 직접필터 오류 | {repr(error)} | {elapsed:.2f}초")
-        return {"signals": 0, "alerts": 0, "errors": 1}
+        return {"signals": len(signals), "alerts": alerts, "errors": inner_errors, "new": new_count}
+    except Exception:
+        return {"signals": 0, "alerts": 0, "errors": 1, "new": 0}
 
 def process_new_events(events, seen, show_state):
     new_items = []
@@ -884,14 +902,11 @@ def run_cycle(session, seen, show_state, cache, dates, label):
         requests_count += 1
         if error or events is None:
             errors += 1
-            print("❌ CGV STAGE API 오류 |", error)
             if error and "HTTP 429" in error:
                 rate_limited = True
                 break
             continue
 
-        if success == 0:
-            print(f"✅ CGV STAGE API 정상응답 확인 | DATE={date} | 무대인사 {count_stage(events)}")
         success += 1
         cache[date] = events
         alerts += process_new_events(events, seen, show_state)
@@ -899,13 +914,6 @@ def run_cycle(session, seen, show_state, cache, dates, label):
 
     save_seen(seen)
     save_booking_state(show_state)
-    elapsed = time.monotonic() - started
-    print(
-        f"{'⚠️' if errors else '🔎'} {now_kst():%H:%M:%S} {label} 완료 | "
-        f"{TARGET_DAY_LABEL} {len(dates)}일 | 요청 {requests_count} | 성공 {success} | "
-        f"오류 {errors} | 무대인사 {count_stage(merged_cache(cache))} | "
-        f"Discord 알림 {alerts} | {elapsed:.2f}초"
-    )
     return {
         "started": started,
         "requests": requests_count,
@@ -952,8 +960,6 @@ def run_fast_scan(seen, show_state, cache):
             errors += 1
             print("❌ CGV STAGE 00/30 ERROR |", error)
             continue
-        if success == 0:
-            print(f"✅ CGV STAGE API 정상응답 확인 | DATE={date} | 무대인사 {count_stage(events)}")
         success += 1
         cache[date] = events
         alerts += process_new_events(events, seen, show_state)
@@ -961,12 +967,6 @@ def run_fast_scan(seen, show_state, cache):
 
     save_seen(seen)
     save_booking_state(show_state)
-    elapsed = time.monotonic() - started
-    icon = "⚡" if errors == 0 else "⚠️"
-    print(
-        f"{icon} {now_kst():%H:%M} 00/30 추가점검 완료 | +7~+21일 중 {TARGET_DAY_LABEL} | "
-        f"성공 {success}/{len(dates)} | {elapsed:.2f}초 | Discord 알림 {alerts} | 오류 {errors}"
-    )
     return {"requests": len(dates), "success": success, "errors": errors, "alerts": alerts}
 
 
@@ -981,6 +981,7 @@ def run_monitor(session, seen, show_state, started_at):
     # 일반 회차 API에 아직 상세 row가 없어도 영화/날짜 신호를 먼저 잡고,
     # 단, +7~+42일의 수/토/일/공휴일 조건을 만족한 날짜만 이후 상세감시에 편입한다.
     direct = run_direct_filter_scan(session, seen, show_state)
+    latest_direct_signals = direct["signals"]
     window_alerts += direct["alerts"]
     window_errors += direct["errors"]
     next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
@@ -1015,6 +1016,7 @@ def run_monitor(session, seen, show_state, started_at):
 
         if mono >= next_direct_scan:
             direct = run_direct_filter_scan(session, seen, show_state)
+            latest_direct_signals = direct["signals"]
             window_alerts += direct["alerts"]
             window_errors += direct["errors"]
             next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
@@ -1040,8 +1042,8 @@ def run_monitor(session, seen, show_state, started_at):
             print(
                 f"{icon} {label} | 최근 10분 날짜조회 {window_requests}회 / 성공 {window_success}회 | "
                 f"누적 전체스캔 {total_cycles}회 / 누적 날짜조회 {total_requests}회 | "
-                f"무대인사 {count_stage(merged_cache(cache))} | 직접필터 날짜 {len(DIRECT_SIGNAL_DATES)} | "
-                f"Discord 알림 {window_alerts} | 오류 {window_errors}"
+                f"무대인사 {count_stage(merged_cache(cache))} | 0025 신호 {latest_direct_signals} | "
+                f"직접필터 날짜 {len(DIRECT_SIGNAL_DATES)} | Discord 알림 {window_alerts} | 오류 {window_errors}"
             )
             report_started = mono
             window_requests = window_success = window_errors = window_alerts = 0
@@ -1104,7 +1106,7 @@ def main():
         return
 
     print("CGV CUST NO: LOADED (VALUE NOT PRINTED)")
-    print("CGV HTTP CLIENT: curl_cffi / impersonate=chrome")
+    print("CGV HTTP CLIENT: curl_cffi / impersonate=chrome / fresh-session retry on 403·429")
     session = cffi_requests.Session(impersonate="chrome")
     try:
         seen = load_seen()
