@@ -74,7 +74,7 @@ HEADERS = {
 }
 
 BLOCK_STATUSES = {403, 429, 500, 502, 503, 504}
-MONITOR_BUILD = "GV_FULL_COVERAGE_20260922_V1"
+MONITOR_BUILD = "GV_FULL_COVERAGE_20260922_V2_INITIAL_CHECK"
 ERROR_RETRY_SECONDS = 12.0
 HTTP_403_RETRY_DELAY = 1.5
 
@@ -964,16 +964,88 @@ def run_monitor(session, seen, show_state, started_at):
     window_direct_errors += direct["errors"]
     next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
 
-    # 18개 날짜를 한꺼번에 때리지 않고 18초에 고르게 분산한다.
-    # 한 날짜가 실패해도 완료 처리하지 않고 다시 due에 넣는다.
-    next_due = build_schedule(show_state)
-
     print(f"MONITOR BUILD: {MONITOR_BUILD}")
     print("📡 GV 전체감시 | +4~+21일 18개 날짜 전부 | 18초 1회전 분산조회")
     print("🎯 GV 0023 직접필터 | +4~+21일만 | 30초 주기")
     print("🛡️ 429 방지 | 날짜 요청 시작간격 >= 0.90초 | 00/30 동시 burst 없음")
-    print("🔁 실패 날짜 | 버리지 않음 / 403은 새 세션 1회 / 429는 25초 후 전체 재개")
-    print("🧾 로그 | 반복 성공/오류는 10분 요약, 신규 Discord 알림은 즉시")
+    print("🔁 실패 날짜 | 버리지 않음 / 403은 새 세션 1회 / 429는 25초 후 재시도")
+    print("🧾 로그 | 시작 즉시 18일 전체점검 결과 출력 → 이후 10분 요약")
+
+    # ------------------------------------------------------------
+    # 시작 즉시 진단용 전체점검
+    # 10분을 기다리지 않고 현재 GitHub runner에서 18개 날짜가 실제로
+    # 몇 개 200인지 바로 보여준다. 429가 나오면 더 두드리지 않고 즉시 중단한다.
+    # ------------------------------------------------------------
+    print("🔎 초기 전체점검 시작 | +4~+21일 18개 날짜")
+    initial_covered = set()
+    initial_failures = []
+    initial_started = time.monotonic()
+
+    for date in target_dates:
+        remaining = RUN_SECONDS - (time.monotonic() - started_at)
+        if remaining <= 0:
+            break
+
+        gap = MIN_REQUEST_GAP - (time.monotonic() - last_request)
+        if gap > 0:
+            time.sleep(min(gap, remaining))
+        last_request = time.monotonic()
+
+        events, error = check_one_date(session, date)
+        total_requests += 1
+        window_requests += 1
+
+        if error or events is None:
+            window_errors += 1
+            initial_failures.append((date, error or "UNKNOWN ERROR"))
+            # 429 이후 계속 요청하면 차단을 키울 수 있으므로 초기 진단은 여기서 즉시 끝낸다.
+            if error and "HTTP 429" in error:
+                break
+            continue
+
+        window_success += 1
+        window_covered.add(date)
+        initial_covered.add(date)
+        cache[date] = events
+        alerts = process_new_events(events, seen, show_state)
+        alerts += process_state_transitions(events, seen, show_state)
+        window_alerts += alerts
+        save_seen(seen)
+        save_booking_state(show_state)
+
+    initial_elapsed = time.monotonic() - initial_started
+    initial_missing = [d for d in target_dates if d not in initial_covered]
+    if len(initial_covered) == len(target_dates):
+        print(
+            f"✅ 초기 전체점검 통과 | 커버리지 {len(initial_covered)}/{len(target_dates)} | "
+            f"GV {count_gv(merged_cache(cache))} | 0023 신호 {latest_direct_signals} | {initial_elapsed:.2f}초"
+        )
+    else:
+        fail_map = {d: e for d, e in initial_failures}
+        fail_text = " / ".join(
+            f"{d}:{fail_map.get(d, '미조회')}" for d in initial_missing
+        )
+        print(
+            f"❌ 초기 전체점검 미통과 | 커버리지 {len(initial_covered)}/{len(target_dates)} | "
+            f"미확인 {','.join(initial_missing) if initial_missing else '없음'}"
+        )
+        if fail_text:
+            print(f"❌ 초기 실패 상세 | {fail_text}")
+
+    # 초기점검에서 확인하지 못한 날짜는 즉시 재시도 대상으로, 성공 날짜는 정상 주기로 배치한다.
+    now = time.monotonic()
+    next_due = build_schedule(show_state, now)
+    for date in target_dates:
+        if date not in initial_covered:
+            next_due[date] = now + (RATE_LIMIT_COOLDOWN if any(d == date and e and "HTTP 429" in e for d, e in initial_failures) else ERROR_RETRY_SECONDS)
+        else:
+            next_due[date] = now + effective_interval(date, show_state)
+
+    # 첫 진단 결과를 이미 출력했으므로 이후 10분 창은 여기서 새로 시작한다.
+    report_started = time.monotonic()
+    window_requests = window_success = window_errors = window_alerts = 0
+    window_direct_errors = 0
+    window_covered = set()
 
     while time.monotonic() - started_at < RUN_SECONDS and 6 <= now_kst().hour <= 23:
         mono = time.monotonic()
@@ -990,7 +1062,7 @@ def run_monitor(session, seen, show_state, started_at):
             next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
             continue
 
-        # 10분마다 '전체 날짜를 실제로 한 번 이상 200으로 읽었는지'를 보여준다.
+        # 시작 진단 이후에는 10분마다 전체 커버리지를 요약한다.
         if mono - report_started >= SUMMARY_SECONDS:
             count = count_gv(merged_cache(cache))
             coverage = len(window_covered & target_set)
