@@ -33,35 +33,26 @@ TARGET_DAY_LABEL = "수/토/일/공휴일"
 
 # 기존 최종 CGV 무대인사 구조를 유지: 대상 날짜 전체를 120초마다 재조회.
 FULL_SCAN_INTERVAL = 120.0
-MIN_REQUEST_GAP = 0.85
+MIN_REQUEST_GAP = 1.00
 HTTP_RETRY_DELAY = 1.20
 HTTP_RETRY_STATUSES = {403, 429}
-RATE_LIMIT_COOLDOWN = 60.0
+RATE_LIMIT_COOLDOWN = 25.0
+CYCLE_RETRY_ROUNDS = 3
+RETRY_ROUND_DELAY = 4.0
 SUMMARY_SECONDS = 600.0
 
-# 00/30 추가점검: +7~+21일 중 수/토/일/공휴일만.
-FAST_SCAN_MINUTES = {0, 30}
+# 기존 workflow 소스검증 호환용 상수. 현재 감시 실행에는 병렬/00·30 burst를 사용하지 않는다.
 FAST_SCAN_START_OFFSET = 7
 FAST_SCAN_END_OFFSET = 21
-FAST_SCAN_WORKERS = 2
 
 RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "86400"))
 
 API_URL = "https://cgv.co.kr/api/v1/booking/searchMovScnInfo"
 
-# CGV 영상부가체험 직접 필터. 일반 극장/날짜 API보다 무대인사 영화/날짜가 먼저 뜨는 경우를 잡는다.
-DIRECT_MOVIE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchAtktTopPostrList"
-DIRECT_DATE_LIST_URL = "https://cgv.co.kr/api/v1/booking/searchSiteScnscYmdListByMov"
-DIRECT_FILTER_CODE = CGV_STAGE_CODE
-DIRECT_SCAN_INTERVAL = 30.0
-DIRECT_SCAN_TIMEOUT = 12
-DIRECT_SIGNAL_DATES = set()
-
 STATE_FILE = "seen_cgv_yongsan_stage_v4.json"
 BASELINE_FILE = "baseline_cgv_yongsan_stage_v4.done"
 BOOKING_STATE_FILE = "cgv_yongsan_stage_booking_state_v4.json"
 BOOKING_STATE_SCHEMA = "CGV_YONGSAN_STAGE_0025_V4_20260912"
-NOTIFIED_MARKER_PREFIX = "__NOTIFIED_STAGE__"
 
 DISCORD_WEBHOOK = os.environ.get("CY_WEBHOOK", "").strip()
 DISCORD_MENTION_ID = os.environ.get("DISCORD_MENTION_ID", "").strip()
@@ -178,8 +169,8 @@ def make_dates(start_offset=7, end_offset=42):
     result = []
     for offset in range(start_offset, end_offset + 1):
         date = (today + timedelta(days=offset)).strftime("%Y%m%d")
-        # +7일 이후 수/토/일/공휴일만. 0025 직접필터 신호도 동일한 날짜 조건을 통과한 경우만 들어온다.
-        if is_stage_target_date(date) or date in DIRECT_SIGNAL_DATES:
+        # 사용자 설정 그대로: +7~+42일 중 수/토/일/대한민국 공휴일만 전부 확인한다.
+        if is_stage_target_date(date):
             result.append(date)
     return result
 
@@ -422,124 +413,6 @@ def iter_dicts(value):
             yield from iter_dicts(child)
 
 
-def extract_direct_movies(data):
-    movies = {}
-    for row in iter_dicts(data):
-        mov_no = clean(row.get("movNo"))
-        if not mov_no:
-            continue
-        movie = clean(row.get("movNm") or row.get("expoProdNm") or row.get("iMovNm") or row.get("movName"))
-        movies[mov_no] = movie
-    return movies
-
-
-def extract_direct_dates(data):
-    dates = set()
-    for row in iter_dicts(data):
-        ymd = clean(row.get("scnYmd"))
-        if re.fullmatch(r"\d{8}", ymd):
-            dates.add(ymd)
-    return dates
-
-
-def direct_filter_link(date, mov_no):
-    return "https://cgv.co.kr/cnm/movieBook/movie?" + urlencode({
-        "movNo": clean(mov_no),
-        "scnYmd": clean(date),
-        "siteNo": SITE_NO,
-        "siteNm": SITE_NAME,
-        "div": "VIDEO_ADDEXP_CD",
-        "attrCd": DIRECT_FILTER_CODE,
-    })
-
-
-def direct_event_key(date, mov_no):
-    return "|".join([SITE_NO, clean(date), clean(mov_no), "STAGE_DIRECT_0025"])
-
-
-def make_direct_event(date, mov_no, movie):
-    return {
-        "date": clean(date),
-        "type": "무대인사",
-        "movie": clean(movie) or f"영화번호 {clean(mov_no)}",
-        "mov_no": clean(mov_no),
-        "prod_no": "",
-        "screen": "",
-        "time": "",
-        "end_time": "",
-        "status": "UNKNOWN",
-        "status_source": "VIDEO_ADDEXP_CD=0025 direct filter",
-        "link": direct_filter_link(date, mov_no),
-        "row": {
-            "movNo": clean(mov_no),
-            "movNm": clean(movie),
-            "videoAddexpCd": DIRECT_FILTER_CODE,
-            "videoAddexpCdNm": "무대인사",
-            "_directSynthetic": True,
-        },
-    }
-
-
-def scan_direct_filter(session):
-    """0025 전용 영화목록 -> 용산 날짜목록. 상세 회차가 숨겨져 있어도 영화/날짜 신호를 먼저 잡는다."""
-    today = now_kst().date()
-    # 당일~+6일은 제외. +7~+42일 중 수/토/일/공휴일만 직접필터 대상으로 인정한다.
-    valid_dates = {
-        (today + timedelta(days=i)).strftime("%Y%m%d")
-        for i in range(7, DAYS)
-        if is_stage_target_date((today + timedelta(days=i)).strftime("%Y%m%d"))
-    }
-    response, _ = get_with_fresh_retry(
-        session,
-        DIRECT_MOVIE_LIST_URL,
-        params={
-            "coCd": CO_CD,
-            "movNm": "",
-            "div": "VIDEO_ADDEXP_CD",
-            "attrCd": DIRECT_FILTER_CODE,
-            "custNo": CGV_CUST_NO,
-        },
-        headers={**BASE_HEADERS, "Referer": "https://cgv.co.kr/cnm/movieBook/movie"},
-        timeout=DIRECT_SCAN_TIMEOUT,
-    )
-    response.raise_for_status()
-    movies = extract_direct_movies(response.json())
-
-    signals = {}
-    errors = 0
-    found_dates = set()
-    for mov_no, movie in movies.items():
-        try:
-            dr, _ = get_with_fresh_retry(
-                session,
-                DIRECT_DATE_LIST_URL,
-                params={
-                    "coCd": CO_CD,
-                    "siteNo": SITE_NO,
-                    "movNo": mov_no,
-                    "div": "VIDEO_ADDEXP_CD",
-                    "attrCd": DIRECT_FILTER_CODE,
-                    "custNo": CGV_CUST_NO,
-                },
-                headers={**BASE_HEADERS, "Referer": "https://cgv.co.kr/cnm/movieBook/movie"},
-                timeout=DIRECT_SCAN_TIMEOUT,
-            )
-            dr.raise_for_status()
-            dates = extract_direct_dates(dr.json()) & valid_dates
-        except Exception as error:
-            errors += 1
-            print(f"⚠️ 무대인사 직접필터 날짜조회 오류 | MOV={mov_no} | {repr(error)}")
-            continue
-
-        found_dates.update(dates)
-        for date in dates:
-            key = direct_event_key(date, mov_no)
-            signals[key] = make_direct_event(date, mov_no, movie)
-
-    DIRECT_SIGNAL_DATES.clear()
-    DIRECT_SIGNAL_DATES.update(found_dates)
-    return signals, errors
-
 def extract_rows(data):
     if isinstance(data, dict) and isinstance(data.get("data"), list):
         return [row for row in data["data"] if isinstance(row, dict)]
@@ -599,34 +472,6 @@ def check_one_date(session, date):
 
 def movie_group_key(event):
     return clean(event.get("mov_no")) or clean(event.get("movie")).casefold()
-
-
-def notification_identity(event):
-    """Discord 신규 감지 알림의 중복 기준: 용산 + 날짜 + 영화."""
-    return "|".join([
-        SITE_NO,
-        clean(event.get("date")),
-        movie_group_key(event),
-    ])
-
-
-def notification_marker_key(event):
-    return f"{NOTIFIED_MARKER_PREFIX}|{notification_identity(event)}"
-
-
-def was_notified(show_state, event):
-    marker = show_state.get(notification_marker_key(event))
-    return isinstance(marker, dict) and marker.get("_discord_detected_notified") is True
-
-
-def mark_notified(show_state, event):
-    # 기존 booking-state 파일 안에 별도 마커를 저장한다.
-    # date/movie 필드를 일부러 넣지 않아 실제 회차 상태와 혼동되지 않게 한다.
-    show_state[notification_marker_key(event)] = {
-        "_discord_detected_notified": True,
-        "identity": notification_identity(event),
-        "notified_at_kst": now_kst().isoformat(),
-    }
 
 
 def alert_time_range(event):
@@ -700,95 +545,21 @@ def send_alert_group(events, status):
     return messages
 
 
-def same_movie_date(record, event):
-    if not isinstance(record, dict):
-        return False
-    if clean(record.get("date")) != clean(event.get("date")):
-        return False
-    record_mov = clean(record.get("mov_no"))
-    event_mov = clean(event.get("mov_no"))
-    if record_mov and event_mov:
-        return record_mov == event_mov
-    a = re.sub(r"\s+", "", clean(record.get("movie"))).casefold()
-    b = re.sub(r"\s+", "", clean(event.get("movie"))).casefold()
-    return bool(a and b and (a == b or a in b or b in a))
-
-
-def has_equivalent_state(show_state, event, direct_only=False):
-    for record in show_state.values():
-        if direct_only and "direct filter" not in clean(record.get("status_source")).casefold():
-            continue
-        if same_movie_date(record, event):
-            return True
-    return False
-
-
-def process_direct_signals(signals, seen, show_state):
-    alerts = 0
-    new_count = 0
-    changed = False
-
-    for key, event in sorted(signals.items()):
-        # 핵심: seen/show_state에 이미 있어도 Discord 전송 마커가 없으면 1회 알린다.
-        # 403 등으로 과거 감지는 됐지만 실제 Discord 알림을 놓친 무대인사를 복구한다.
-        if not was_notified(show_state, event):
-            message_count = send_alert_group([event], "DETECTED")
-            if message_count > 0:
-                alerts += message_count
-                new_count += 1
-                mark_notified(show_state, event)
-                changed = True
-
-        # 감지 상태 자체는 기존 방식대로 동기화한다.
-        if key not in seen:
-            seen.add(key)
-            show_state[key] = state_record(event, "DETECTED")
-            changed = True
-
-    if changed:
-        save_seen(seen)
-        save_booking_state(show_state)
-    return alerts, new_count
-
-
-def run_direct_filter_scan(session, seen, show_state):
-    # 30초마다 실제 조회는 계속하되, 반복 로그는 10분 요약에서만 보여준다.
-    try:
-        signals, inner_errors = scan_direct_filter(session)
-        alerts, new_count = process_direct_signals(signals, seen, show_state)
-        return {"signals": len(signals), "alerts": alerts, "errors": inner_errors, "new": new_count}
-    except Exception:
-        return {"signals": 0, "alerts": 0, "errors": 1, "new": 0}
-
 def process_new_events(events, seen, show_state):
-    notify_items = []
-    changed = False
-
+    new_items = []
     for key, event in events.items():
+        if key in seen:
+            continue
         current = event.get("status", "UNKNOWN")
-
-        # 매진으로 처음 발견된 회차는 기존 정책대로 사용자 알림 없이 내부 상태만 저장한다.
         if current == "SOLD_OUT":
-            if key not in seen:
-                seen.add(key)
-                changed = True
+            seen.add(key)
             show_state[key] = state_record(event, "SOLD_OUT")
             continue
 
-        # 예전에 seen/state에 들어갔어도 실제 Discord DETECTED 알림을 보낸 기록이 없으면
-        # 이번 성공 조회에서 1회 복구 알림 대상으로 올린다.
-        if not was_notified(show_state, event):
-            notify_items.append((key, event))
-            continue
-
-        # 이미 Discord 감지 알림까지 완료된 이벤트는 상태만 조용히 동기화한다.
-        if key not in seen:
-            seen.add(key)
-            show_state[key] = state_record(event, current)
-            changed = True
+        new_items.append((key, event))
 
     groups = {}
-    for key, event in notify_items:
+    for key, event in new_items:
         group_key = (event.get("date", ""), movie_group_key(event))
         groups.setdefault(group_key, []).append((key, event))
 
@@ -800,17 +571,10 @@ def process_new_events(events, seen, show_state):
         message_count = send_alert_group(display, "DETECTED")
         if message_count <= 0:
             continue
-
         sent += message_count
-        mark_notified(show_state, first)
-        changed = True
         for key, event in members:
             seen.add(key)
             show_state[key] = state_record(event, event.get("status", "UNKNOWN"))
-
-    if changed:
-        save_seen(seen)
-        save_booking_state(show_state)
     return sent
 
 
@@ -883,26 +647,49 @@ def merged_cache(cache):
 
 
 def baseline_scan(session):
+    """초기 기준선도 대상 날짜 전부가 200으로 확인된 경우에만 완료한다."""
     dates = make_dates()
     events_all = {}
-    errors = 0
+    pending = list(dates)
+    failed_details = {}
+    requests_count = 0
     last_request = 0.0
 
-    for index, date in enumerate(dates, start=1):
-        wait = MIN_REQUEST_GAP - (time.monotonic() - last_request)
-        if wait > 0:
-            time.sleep(wait)
-        last_request = time.monotonic()
-        events, error = check_one_date(session, date)
-        if error or events is None:
-            errors += 1
-            print("❌ BASELINE API ERROR |", error)
-            continue
-        events_all.update(events)
-        if index % 10 == 0 or index == len(dates):
-            print(f"⏳ 무대인사 baseline {index}/{len(dates)} 대상날짜 완료")
+    for round_no in range(1, CYCLE_RETRY_ROUNDS + 1):
+        if not pending:
+            break
+        if round_no > 1:
+            delay = RATE_LIMIT_COOLDOWN if any("HTTP 429" in v for v in failed_details.values()) else RETRY_ROUND_DELAY
+            time.sleep(delay)
 
-    return events_all, errors
+        current = list(pending)
+        pending = []
+        failed_details = {}
+
+        for idx, date in enumerate(current):
+            wait = MIN_REQUEST_GAP - (time.monotonic() - last_request)
+            if wait > 0:
+                time.sleep(wait)
+            last_request = time.monotonic()
+
+            events, error = check_one_date(session, date)
+            requests_count += 1
+            if error or events is None:
+                pending.append(date)
+                failed_details[date] = error or "UNKNOWN ERROR"
+                if error and "HTTP 429" in error:
+                    # 429 뒤에는 나머지 날짜를 즉시 더 두드리지 않는다.
+                    for remain in current[idx + 1:]:
+                        if remain not in pending:
+                            pending.append(remain)
+                            failed_details.setdefault(remain, "NOT TRIED AFTER HTTP 429")
+                    break
+                continue
+
+            events_all.update(events)
+            failed_details.pop(date, None)
+
+    return events_all, len(pending), pending, failed_details, requests_count
 
 
 def initialize_state(session, seen, show_state, state_ready):
@@ -914,9 +701,14 @@ def initialize_state(session, seen, show_state, state_ready):
     print("=" * 72)
     print("INITIAL CGV YONGSAN STAGE 0025 BASELINE")
     print("=" * 72)
-    events, errors = baseline_scan(session)
+    events, errors, failed_dates, failed_details, baseline_requests = baseline_scan(session)
     if errors:
-        print(f"❌ BASELINE FAILED | 오류 {errors}일 | 불완전 baseline은 저장하지 않습니다.")
+        print(
+            f"❌ BASELINE FAILED | 커버리지 {len(make_dates()) - errors}/{len(make_dates())} | "
+            f"미확인 {','.join(failed_dates)} | 불완전 baseline은 저장하지 않습니다."
+        )
+        for date in failed_dates:
+            print(f"❌ BASELINE 실패 상세 | {date}:{failed_details.get(date, 'UNKNOWN ERROR')}")
         return seen, show_state, False
 
     if need_seen:
@@ -932,126 +724,131 @@ def initialize_state(session, seen, show_state, state_ready):
     return seen, show_state, True
 
 
-def run_cycle(session, seen, show_state, cache, dates, label):
+def run_cycle(session, seen, show_state, cache, dates, label, notify=True):
+    """대상 날짜를 전부 확인한다. 실패 날짜는 버리지 않고 같은 사이클에서 재시도한다."""
     started = time.monotonic()
-    requests_count = success = errors = alerts = 0
+    requests_count = 0
+    attempt_errors = 0
+    alerts = 0
+    succeeded = set()
+    pending = list(dates)
+    failed_details = {}
     last_request = 0.0
-    rate_limited = False
+    saw_429 = False
 
-    for date in dates:
-        wait = MIN_REQUEST_GAP - (time.monotonic() - last_request)
-        if wait > 0:
-            time.sleep(wait)
-        last_request = time.monotonic()
-        events, error = check_one_date(session, date)
-        requests_count += 1
-        if error or events is None:
-            errors += 1
-            if error and "HTTP 429" in error:
-                rate_limited = True
-                break
-            continue
+    for round_no in range(1, CYCLE_RETRY_ROUNDS + 1):
+        if not pending:
+            break
 
-        success += 1
-        cache[date] = events
-        alerts += process_new_events(events, seen, show_state)
-        alerts += process_state_transitions(events, seen, show_state)
+        if round_no > 1:
+            delay = RATE_LIMIT_COOLDOWN if saw_429 else RETRY_ROUND_DELAY
+            time.sleep(delay)
+            saw_429 = False
+
+        current = list(pending)
+        pending = []
+        failed_details = {}
+
+        for idx, date in enumerate(current):
+            wait = MIN_REQUEST_GAP - (time.monotonic() - last_request)
+            if wait > 0:
+                time.sleep(wait)
+            last_request = time.monotonic()
+
+            events, error = check_one_date(session, date)
+            requests_count += 1
+
+            if error or events is None:
+                attempt_errors += 1
+                pending.append(date)
+                failed_details[date] = error or "UNKNOWN ERROR"
+
+                if error and "HTTP 429" in error:
+                    saw_429 = True
+                    # 429 뒤에는 남은 날짜를 즉시 더 호출하지 않고 다음 라운드로 넘긴다.
+                    for remain in current[idx + 1:]:
+                        if remain not in pending:
+                            pending.append(remain)
+                            failed_details.setdefault(remain, "NOT TRIED AFTER HTTP 429")
+                    break
+                continue
+
+            succeeded.add(date)
+            failed_details.pop(date, None)
+            cache[date] = events
+
+            if notify:
+                alerts += process_new_events(events, seen, show_state)
+                alerts += process_state_transitions(events, seen, show_state)
+            else:
+                # 시작 시점에 이미 존재하는 무대인사는 기준선으로만 등록한다.
+                # 과거 무대인사 재알림을 막고, 다음 사이클부터 새로 생긴 회차만 알린다.
+                for key, event in events.items():
+                    seen.add(key)
+                    show_state[key] = state_record(event, event.get("status", "UNKNOWN"))
 
     save_seen(seen)
     save_booking_state(show_state)
+
+    # 한 번이라도 성공한 날짜는 pending에 남지 않도록 정리한다.
+    pending = [d for d in pending if d not in succeeded]
+    complete = len(succeeded) == len(dates)
+
     return {
         "started": started,
         "requests": requests_count,
-        "success": success,
-        "errors": errors,
+        "success": len(succeeded),
+        "errors": attempt_errors,
         "alerts": alerts,
-        "rate_limited": rate_limited,
+        "complete": complete,
+        "failed_dates": pending,
+        "failed_details": {d: failed_details.get(d, "UNKNOWN ERROR") for d in pending},
+        "rate_limited": saw_429 or any("HTTP 429" in v for v in failed_details.values()),
     }
-
-
-def run_fast_scan(seen, show_state, cache):
-    dates = make_dates(FAST_SCAN_START_OFFSET, FAST_SCAN_END_OFFSET)
-    if not dates:
-        return {"requests": 0, "success": 0, "errors": 0, "alerts": 0}
-
-    lock = threading.Lock()
-    next_start = [time.monotonic()]
-
-    def worker(date):
-        with lock:
-            wait = next_start[0] - time.monotonic()
-            if wait > 0:
-                time.sleep(wait)
-            next_start[0] = time.monotonic() + MIN_REQUEST_GAP
-        session = cffi_requests.Session(impersonate="chrome")
-        try:
-            return date, *check_one_date(session, date)
-        finally:
-            session.close()
-
-    started = time.monotonic()
-    results = []
-    with ThreadPoolExecutor(max_workers=FAST_SCAN_WORKERS) as executor:
-        futures = [executor.submit(worker, date) for date in dates]
-        for future in as_completed(futures):
-            try:
-                results.append(future.result())
-            except Exception as error:
-                results.append(("", None, f"WORKER ERROR | {repr(error)}"))
-
-    success = errors = alerts = 0
-    for date, events, error in sorted(results, key=lambda item: item[0]):
-        if error or events is None:
-            errors += 1
-            print("❌ CGV STAGE 00/30 ERROR |", error)
-            continue
-        success += 1
-        cache[date] = events
-        alerts += process_new_events(events, seen, show_state)
-        alerts += process_state_transitions(events, seen, show_state)
-
-    save_seen(seen)
-    save_booking_state(show_state)
-    return {"requests": len(dates), "success": success, "errors": errors, "alerts": alerts}
 
 
 def run_monitor(session, seen, show_state, started_at):
     cache = {}
     report_started = time.monotonic()
-    window_requests = window_success = window_errors = window_alerts = 0
+    window_requests = window_errors = window_alerts = 0
     total_requests = total_cycles = 0
-    last_fast_slot = None
-
-    # 시작하자마자 0025 직접필터부터 확인한다.
-    # 일반 회차 API에 아직 상세 row가 없어도 영화/날짜 신호를 먼저 잡고,
-    # 단, +7~+42일의 수/토/일/공휴일 조건을 만족한 날짜만 이후 상세감시에 편입한다.
-    direct = run_direct_filter_scan(session, seen, show_state)
-    latest_direct_signals = direct["signals"]
-    window_alerts += direct["alerts"]
-    window_errors += direct["errors"]
-    next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
-
     target_dates = make_dates()
-    result = run_cycle(session, seen, show_state, cache, target_dates, "일반 전체스캔")
+    target_count = len(target_dates)
+
+    print(f"📡 무대인사 전체감시 | +7~+42일 {TARGET_DAY_LABEL} | 대상 {target_count}일 전부")
+    print("🔐 조회 경로 | searchMovScnInfo + CGV_CUST_NO")
+    print("🚫 0025 영화별 날짜조회 | 403 반복 경로라 실행하지 않음")
+    print(f"🛡️ 요청 분산 | 날짜 요청 시작간격 >= {MIN_REQUEST_GAP:.2f}초 | 병렬 burst 없음")
+    print(f"🔁 실패 날짜 | 버리지 않음 / 최대 {CYCLE_RETRY_ROUNDS}라운드 재시도 / 429는 {RATE_LIMIT_COOLDOWN:.0f}초 휴식")
+    print("🧾 로그 | 시작 즉시 전체점검 결과 출력 → 이후 10분 요약")
+    print("🔕 시작 기준선 | 현재 존재하는 무대인사는 재알림하지 않고, 다음 점검부터 새 회차만 즉시 알림")
+
+    print(f"🔎 초기 전체점검 시작 | +7~+42일 {TARGET_DAY_LABEL} {target_count}개 날짜")
+    result = run_cycle(session, seen, show_state, cache, target_dates, "초기 전체점검", notify=False)
     total_cycles += 1
     total_requests += result["requests"]
     window_requests += result["requests"]
-    window_success += result["success"]
     window_errors += result["errors"]
     window_alerts += result["alerts"]
-    next_regular = (
-        time.monotonic() + RATE_LIMIT_COOLDOWN
-        if result["rate_limited"]
-        else max(time.monotonic(), result["started"] + FULL_SCAN_INTERVAL)
-    )
 
-    print(
-        f"📡 무대인사 일반감시 | +7~+42일 {TARGET_DAY_LABEL} | "
-        "전체 120초 주기"
-    )
-    print("🎯 무대인사 0025 직접필터 | 영화목록+용산 날짜목록 | 30초 주기")
-    print(f"⚡ 00/30 추가점검 | +7~+21일 중 {TARGET_DAY_LABEL} | 2 workers")
-    print("🎯 무대인사 판정: videoAddexpCd=0025 + 무대인사 텍스트 fallback")
+    stage_count = count_stage(merged_cache(cache))
+    if result["complete"]:
+        print(
+            f"✅ 초기 전체점검 통과 | 커버리지 {result['success']}/{target_count} | "
+            f"무대인사 {stage_count} | {time.monotonic() - result['started']:.2f}초"
+        )
+    else:
+        failed = ",".join(result["failed_dates"]) or "UNKNOWN"
+        print(
+            f"❌ 초기 전체점검 미통과 | 커버리지 {result['success']}/{target_count} | "
+            f"미확인 {failed} | 무대인사 {stage_count}"
+        )
+        for date in result["failed_dates"]:
+            print(f"❌ 초기 실패 상세 | {date}:{result['failed_details'].get(date, 'UNKNOWN ERROR')}")
+
+    last_coverage = result["success"]
+    last_failed_dates = list(result["failed_dates"])
+    next_regular = time.monotonic() + (FULL_SCAN_INTERVAL if result["complete"] else RATE_LIMIT_COOLDOWN)
 
     while time.monotonic() - started_at < RUN_SECONDS and 6 <= now_kst().hour <= 23:
         mono = time.monotonic()
@@ -1059,68 +856,42 @@ def run_monitor(session, seen, show_state, started_at):
         if remaining <= 0:
             break
 
-        if mono >= next_direct_scan:
-            direct = run_direct_filter_scan(session, seen, show_state)
-            latest_direct_signals = direct["signals"]
-            window_alerts += direct["alerts"]
-            window_errors += direct["errors"]
-            next_direct_scan = time.monotonic() + DIRECT_SCAN_INTERVAL
-            continue
-
-        wall = now_kst()
-        if wall.minute in FAST_SCAN_MINUTES:
-            slot = wall.strftime("%Y%m%d%H%M")
-            if slot != last_fast_slot:
-                last_fast_slot = slot
-                result = run_fast_scan(seen, show_state, cache)
-                total_requests += result["requests"]
-                window_requests += result["requests"]
-                window_success += result["success"]
-                window_errors += result["errors"]
-                window_alerts += result["alerts"]
-                next_regular = time.monotonic() + FULL_SCAN_INTERVAL
-                continue
-
         if mono - report_started >= SUMMARY_SECONDS:
-            icon = "💚" if window_errors == 0 else "⚠️"
-            label = "정상 감시중" if window_errors == 0 else "감시중(API 오류 있음)"
+            icon = "💚" if last_coverage == target_count else "⚠️"
+            label = "전체 날짜 확인됨" if last_coverage == target_count else "전체 날짜 미확인"
+            failed_text = "없음" if not last_failed_dates else ",".join(last_failed_dates)
             print(
-                f"{icon} {label} | 최근 10분 날짜조회 {window_requests}회 / 성공 {window_success}회 | "
-                f"누적 전체스캔 {total_cycles}회 / 누적 날짜조회 {total_requests}회 | "
-                f"무대인사 {count_stage(merged_cache(cache))} | 0025 신호 {latest_direct_signals} | "
-                f"직접필터 날짜 {len(DIRECT_SIGNAL_DATES)} | Discord 알림 {window_alerts} | 오류 {window_errors}"
+                f"{icon} {label} | 최근10분 커버리지 {last_coverage}/{target_count} | "
+                f"미확인 {failed_text} | 날짜요청 {window_requests} | "
+                f"무대인사 {count_stage(merged_cache(cache))} | Discord 알림 {window_alerts} | "
+                f"요청오류 {window_errors}"
             )
             report_started = mono
-            window_requests = window_success = window_errors = window_alerts = 0
+            window_requests = window_errors = window_alerts = 0
             continue
 
         if mono >= next_regular:
             target_dates = make_dates()
-            result = run_cycle(session, seen, show_state, cache, target_dates, "일반 전체스캔")
+            target_count = len(target_dates)
+            result = run_cycle(session, seen, show_state, cache, target_dates, "정규 전체점검", notify=True)
             total_cycles += 1
             total_requests += result["requests"]
             window_requests += result["requests"]
-            window_success += result["success"]
             window_errors += result["errors"]
             window_alerts += result["alerts"]
-            next_regular = (
-                time.monotonic() + RATE_LIMIT_COOLDOWN
-                if result["rate_limited"]
-                else max(time.monotonic(), result["started"] + FULL_SCAN_INTERVAL)
-            )
+            last_coverage = result["success"]
+            last_failed_dates = list(result["failed_dates"])
+            next_regular = time.monotonic() + (FULL_SCAN_INTERVAL if result["complete"] else RATE_LIMIT_COOLDOWN)
             continue
 
-        sleep_for = min(
-            max(0.05, next_regular - mono),
-            max(0.05, next_direct_scan - mono),
-            remaining,
-            0.5,
-        )
-        time.sleep(sleep_for)
+        time.sleep(min(max(0.05, next_regular - mono), remaining, 0.5))
 
     save_seen(seen)
     save_booking_state(show_state)
-    print(f"✅ CGV 용산 무대인사 감시 종료 | 누적 전체스캔 {total_cycles}회 | 누적 날짜조회 {total_requests}회")
+    print(
+        f"✅ CGV 용산 무대인사 감시 종료 | 누적 전체점검 {total_cycles}회 | "
+        f"누적 날짜요청 {total_requests}회"
+    )
 
 
 def main():
@@ -1135,10 +906,10 @@ def main():
     print("=" * 72)
     print("BRANCH:", SITE_NAME)
     print("SITE NO:", SITE_NO)
-    print("TARGET: 무대인사 ONLY / 0025 직접필터 + videoAddexpCd=0025 + 무대인사 text fallback")
+    print("TARGET: 무대인사 ONLY / videoAddexpCd=0025 + 무대인사 text fallback")
     print(f"TARGET DAYS: +7~+42일 / {TARGET_DAY_LABEL}")
     print("DATE RANGE: +7 ~ +42 DAYS")
-    print("SCAN: +7~+42 대상 날짜 120초 + 0025 직접필터 30초 + 00/30 +7~+21일 2 workers")
+    print("SCAN: +7~+42 대상 날짜 전체 120초 주기 / 실패 날짜 재시도")
     print("SOLD OUT / REOPEN: 사용자 알림 없음 / 내부 상태만 저장")
     print("ALERT: 날짜 + 영화 + 무대인사 묶음 / 영화 제목에만 예매 링크")
     print("RUN SECONDS:", RUN_SECONDS)
@@ -1152,8 +923,9 @@ def main():
 
     print("CGV CUST NO: LOADED (VALUE NOT PRINTED)")
     print("CGV HTTP CLIENT: curl_cffi / impersonate=chrome / fresh-session retry on 403·429")
-    print("STAGE DIRECT FILTER AUTH: CGV_CUST_NO applied to 0025 movie/date requests (VALUE NOT PRINTED)")
-    print("STAGE DISCORD TRACKING: seen/state와 별도 마커 / 미전송 기존 무대인사 1회 복구 알림")
+    print("STAGE COVERAGE POLICY: 대상 날짜 전부 실제 200 응답 확인 시에만 전체 확인으로 표시")
+    print("STAGE API MODE: searchMovScnInfo + CGV_CUST_NO only")
+    print("MONITOR BUILD: STAGE_FULL_COVERAGE_20260922_V1")
     session = cffi_requests.Session(impersonate="chrome")
     try:
         seen = load_seen()
