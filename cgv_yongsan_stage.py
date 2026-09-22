@@ -497,6 +497,7 @@ def scan_direct_filter(session):
             "movNm": "",
             "div": "VIDEO_ADDEXP_CD",
             "attrCd": DIRECT_FILTER_CODE,
+            "custNo": CGV_CUST_NO,
         },
         headers={**BASE_HEADERS, "Referer": "https://cgv.co.kr/cnm/movieBook/movie"},
         timeout=DIRECT_SCAN_TIMEOUT,
@@ -518,6 +519,7 @@ def scan_direct_filter(session):
                     "movNo": mov_no,
                     "div": "VIDEO_ADDEXP_CD",
                     "attrCd": DIRECT_FILTER_CODE,
+                    "custNo": CGV_CUST_NO,
                 },
                 headers={**BASE_HEADERS, "Referer": "https://cgv.co.kr/cnm/movieBook/movie"},
                 timeout=DIRECT_SCAN_TIMEOUT,
@@ -1150,6 +1152,7 @@ def main():
 
     print("CGV CUST NO: LOADED (VALUE NOT PRINTED)")
     print("CGV HTTP CLIENT: curl_cffi / impersonate=chrome / fresh-session retry on 403·429")
+    print("STAGE DIRECT FILTER AUTH: CGV_CUST_NO applied to 0025 movie/date requests (VALUE NOT PRINTED)")
     print("STAGE DISCORD TRACKING: seen/state와 별도 마커 / 미전송 기존 무대인사 1회 복구 알림")
     session = cffi_requests.Session(impersonate="chrome")
     try:
